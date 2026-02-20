@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@evenrealities/evenhub-cli": "^0.1.5"
+  }
+}

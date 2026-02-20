@@ -1,0 +1,17 @@
+{
+  "name": "evenhub-testapp",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@evenrealities/even_hub_sdk": "latest"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

@@ -1,0 +1,62 @@
+:root {
+  color-scheme: light;
+  font-family: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.4;
+  font-weight: 400;
+  color: #111;
+  background-color: #f7f5ef;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+  padding: 32px;
+  display: grid;
+  gap: 20px;
+  align-content: start;
+}
+
+.card {
+  background: #fff;
+  border: 2px solid #111;
+  padding: 16px 20px;
+  box-shadow: 8px 8px 0 #111;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid #111;
+  background: #ffe06b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.log {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px dashed #111;
+  padding: 8px;
+  background: #fafafa;
+}
