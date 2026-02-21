@@ -27,36 +27,49 @@ export interface ViewModel {
 
 export class RenderPipeline {
   private created = false;
+  private lastRenderWasTextOnly = false;
   constructor(private readonly bridge: EvenHubBridge, private readonly logger: Logger) {}
 
   async render(viewModel: ViewModel): Promise<void> {
     const layout = buildLayout(viewModel);
-
-    if (!this.created) {
-      this.created = await this.bridge.createStartup(layout);
-      this.logger.info(`Startup UI created: ${this.created}`);
-      return;
-    }
-
     const hasTextOnly =
       layout.containerTotalNum === 1 &&
       (layout.textObject?.length ?? 0) === 1 &&
       (layout.listObject?.length ?? 0) === 0;
 
-    if (hasTextOnly && layout.textObject) {
+    if (!this.created) {
+      this.created = await this.bridge.createStartup(layout);
+      this.logger.info(`Startup UI created: ${this.created}`);
+      this.lastRenderWasTextOnly = hasTextOnly;
+      return;
+    }
+
+    // Text delta updates are only safe if the previous rendered page was also text-only.
+    if (hasTextOnly && this.lastRenderWasTextOnly && layout.textObject) {
       const text = layout.textObject[0];
       if (text) {
-        await this.bridge.updateText({
+        const updated = await this.bridge.updateText({
           containerID: text.containerID,
           containerName: text.containerName,
           contentOffset: 0,
           contentLength: text.content?.length ?? 0,
           content: text.content,
         });
-        return;
+
+        if (updated) {
+          this.lastRenderWasTextOnly = true;
+          return;
+        }
+
+        this.logger.info("textContainerUpgrade failed, fallback to rebuild");
       }
     }
 
-    await this.bridge.rebuild(layout);
+    const rebuilt = await this.bridge.rebuild(layout);
+    if (!rebuilt) {
+      this.logger.info("rebuildPageContainer failed");
+    }
+
+    this.lastRenderWasTextOnly = hasTextOnly;
   }
 }

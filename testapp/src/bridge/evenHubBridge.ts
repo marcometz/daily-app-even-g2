@@ -11,6 +11,7 @@ import type { StartupPayload, RebuildPayload } from "./evenHubTypes";
 export class EvenHubBridge {
   private ready = false;
   private created = false;
+  private startupInFlight: Promise<boolean> | null = null;
   private bridge: Awaited<ReturnType<typeof waitForEvenAppBridge>> | null = null;
   private inputHandler: ((event: InputEvent) => void) | null = null;
 
@@ -39,9 +40,32 @@ export class EvenHubBridge {
     if (this.created) {
       return true;
     }
-    const result = await this.bridge.createStartUpPageContainer(payload);
-    this.created = result === 0;
-    return this.created;
+    if (this.startupInFlight) {
+      return this.startupInFlight;
+    }
+
+    this.startupInFlight = (async () => {
+      const rawResult = await this.bridge!.createStartUpPageContainer(payload);
+      const startupOk =
+        rawResult === 0 ||
+        rawResult === true ||
+        rawResult === "0" ||
+        rawResult === "success" ||
+        rawResult === "APP_REQUEST_CREATE_PAGE_SUCCESS";
+
+      // Never downgrade once startup has succeeded.
+      if (startupOk) {
+        this.created = true;
+      }
+
+      return this.created;
+    })();
+
+    try {
+      return await this.startupInFlight;
+    } finally {
+      this.startupInFlight = null;
+    }
   }
 
   async rebuild(payload: RebuildPayload): Promise<boolean> {

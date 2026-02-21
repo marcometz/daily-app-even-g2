@@ -15,6 +15,10 @@ Sources (local copies)
 - UI pipeline: `testapp/src/ui`
 - Bridge wrapper: `testapp/src/bridge/evenHubBridge.ts`
 
+Local monitoring
+- Dev URL for live UI/manual log inspection: `http://localhost:5173`
+- Quick availability check from terminal: `curl -I http://localhost:5173`
+
 Supported primitives
 - Container models:
   - `ListContainerProperty`
