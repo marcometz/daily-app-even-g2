@@ -1,11 +1,13 @@
 import type { DashboardData, DataService, DetailData, ListData } from "./DataService";
-import { RSS_FEEDS } from "./rssConfig";
 import { parseRssFeed, type ParsedRssItem } from "./rssParser";
+import { RssConfigService } from "./RssConfigService";
 
 const RSS_LIST_ID = "rss";
+const RSS_PROXY_PATH = "/rss-proxy";
 
 export class MockDataService implements DataService {
   private rssItems: ParsedRssItem[] = [];
+  constructor(private readonly rssConfigService: RssConfigService) {}
 
   private readonly dashboard: DashboardData = {
     title: "Dashboard",
@@ -17,27 +19,30 @@ export class MockDataService implements DataService {
       return;
     }
 
+    const feeds = await this.rssConfigService.loadRuntimeFeeds();
+    if (feeds.length === 0) {
+      throw new Error("Keine gueltigen RSS-Feeds konfiguriert.");
+    }
+
     const responses = await Promise.allSettled(
-      RSS_FEEDS.map(async (feed) => {
-        const response = await fetch(feed.url, {
-          headers: {
-            Accept: "application/rss+xml, application/xml, text/xml",
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error(`${feed.title}: HTTP ${response.status}`);
+      feeds.map(async (feed) => {
+        try {
+          const xml = await fetchFeedXml(feed.url);
+          return parseRssFeed(xml, feed);
+        } catch (error) {
+          const reason = readErrorMessage(error);
+          throw new Error(`${feed.title}: ${reason}`);
         }
-
-        const xml = await response.text();
-        return parseRssFeed(xml, feed);
       })
     );
 
     const loadedItems: ParsedRssItem[] = [];
+    const failedFeeds: string[] = [];
     for (const response of responses) {
       if (response.status === "fulfilled") {
         loadedItems.push(...response.value);
+      } else {
+        failedFeeds.push(readErrorMessage(response.reason));
       }
     }
 
@@ -50,7 +55,8 @@ export class MockDataService implements DataService {
       throw new Error("RSS-Feeds sind nicht erreichbar. Letzter Stand bleibt sichtbar.");
     }
 
-    throw new Error("RSS-Feeds konnten nicht geladen werden.");
+    const detail = failedFeeds.length > 0 ? ` Details: ${failedFeeds.join(" | ")}` : "";
+    throw new Error(`RSS-Feeds konnten nicht geladen werden.${detail}`);
   }
 
   getDashboard(): DashboardData {
@@ -127,4 +133,58 @@ function compareByPublishedDateDesc(a: ParsedRssItem, b: ParsedRssItem): number 
     return -1;
   }
   return bDate - aDate;
+}
+
+function readErrorMessage(value: unknown): string {
+  if (value instanceof Error) {
+    return value.message;
+  }
+  return String(value);
+}
+
+async function fetchFeedXml(url: string): Promise<string> {
+  try {
+    return await fetchXml(url);
+  } catch (directError) {
+    if (!shouldUseProxyFallback(directError)) {
+      throw directError;
+    }
+    if (!import.meta.env.DEV) {
+      throw new Error(
+        `${readErrorMessage(directError)} (CORS-Block, Proxy-Fallback nur in DEV verfuegbar)`
+      );
+    }
+
+    const proxiedUrl = `${RSS_PROXY_PATH}?url=${encodeURIComponent(url)}`;
+    try {
+      return await fetchXml(proxiedUrl);
+    } catch (proxyError) {
+      throw new Error(
+        `${readErrorMessage(directError)}; Proxy-Fallback fehlgeschlagen: ${readErrorMessage(proxyError)}`
+      );
+    }
+  }
+}
+
+async function fetchXml(url: string): Promise<string> {
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/rss+xml, application/xml, text/xml",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.text();
+}
+
+function shouldUseProxyFallback(error: unknown): boolean {
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  const message = readErrorMessage(error).toLowerCase();
+  return message.includes("cors") || message.includes("failed to fetch");
 }

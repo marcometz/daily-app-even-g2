@@ -4,6 +4,8 @@ import { createRouter } from "../navigation/router";
 import { ScreenStack } from "../navigation/stack";
 import { createInputDispatcher } from "../input/inputHandlers";
 import { MockDataService } from "../services/data/MockDataService";
+import { RssConfigService } from "../services/data/RssConfigService";
+import { EvenHubStorageService } from "../services/storage/EvenHubStorageService";
 import { createDashboardScreen } from "../screens/DashboardScreen";
 import { RenderPipeline } from "../ui/render/renderPipeline";
 import { Logger } from "../utils/logger";
@@ -16,9 +18,18 @@ export class AppController {
   async start(): Promise<void> {
     this.logger.info("App starting");
 
-    const dataService = new MockDataService();
+    const storageService = new EvenHubStorageService();
+    const rssConfigService = new RssConfigService(storageService);
+    const dataService = new MockDataService(rssConfigService);
 
     this.bridge = await initBridge();
+    try {
+      await rssConfigService.ensureSeededDefaults();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.info(`RSS config seed failed: ${message}`);
+    }
+
     const renderer = new RenderPipeline(this.bridge, this.logger);
 
     const router = createRouter(this.stack, dataService, this.logger);

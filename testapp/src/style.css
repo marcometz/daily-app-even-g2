@@ -60,3 +60,101 @@ pre {
   padding: 8px;
   background: #fafafa;
 }
+
+.badge-pending {
+  background: #ffe06b;
+}
+
+.badge-ok {
+  background: #b8efc0;
+}
+
+.badge-error {
+  background: #ffd2cc;
+}
+
+.feedback {
+  margin: 0 0 12px;
+  min-height: 20px;
+  font-size: 13px;
+}
+
+.feedback-ok {
+  color: #0f5d1f;
+}
+
+.feedback-error {
+  color: #8a1d0d;
+}
+
+.feed-list {
+  display: grid;
+  gap: 14px;
+}
+
+.feed-row {
+  border: 1px solid #111;
+  background: #fff;
+  padding: 10px;
+}
+
+.feed-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.field-label {
+  display: block;
+  margin: 6px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+input {
+  width: 100%;
+  border: 1px solid #111;
+  border-radius: 0;
+  padding: 8px;
+  font: inherit;
+  background: #fff;
+}
+
+input:disabled {
+  background: #efefef;
+}
+
+.validation-error {
+  min-height: 16px;
+  margin: 4px 0 0;
+  color: #8a1d0d;
+  font-size: 12px;
+}
+
+.actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+button {
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  padding: 8px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button.danger {
+  background: #fff2f0;
+}
+
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
