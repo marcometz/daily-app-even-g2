@@ -9,7 +9,7 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:dashboard": "vitest run src/screens/dashboard/resolveDashboardSelection.test.ts"
+    "test:dashboard": "vitest run test/screens/dashboard/resolveDashboardSelection.test.ts"
   },
   "dependencies": {
     "@evenrealities/even_hub_sdk": "latest"

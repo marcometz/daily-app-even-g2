@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDashboardScreen } from "../DashboardScreen";
-import type { InputEvent } from "../../input/keyBindings";
+import { createDashboardScreen } from "../../../src/screens/DashboardScreen";
+import type { InputEvent } from "../../../src/input/keyBindings";
 import type {
   DashboardItem,
   DashboardData,
   DataService,
   DetailData,
   ListData,
-} from "../../services/data/DataService";
+} from "../../../src/services/data/DataService";
 import {
   RSS_LIST_ID,
   SHOPPING_LIST_ID,
-} from "../../services/data/RssAppDataService";
+} from "../../../src/services/data/RssAppDataService";
 import {
   clickByItemNameFirst,
   clickByItemNameSecond,
@@ -25,7 +25,7 @@ import {
   downEvent,
   upEvent,
 } from "./__fixtures__/dashboardInputEvents";
-import { resolveDashboardSelection } from "./resolveDashboardSelection";
+import { resolveDashboardSelection } from "../../../src/screens/dashboard/resolveDashboardSelection";
 
 const dashboardItems: DashboardItem[] = [
   { id: "dashboard-rss", label: "RSS-Feeds", listId: RSS_LIST_ID },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ShoppingConfigService } from "./ShoppingConfigService";
-import type { StorageService } from "../storage/StorageService";
+import { ShoppingConfigService } from "../../../src/services/data/ShoppingConfigService";
+import type { StorageService } from "../../../src/services/storage/StorageService";
 
 class MemoryStorageService implements StorageService {
   private readonly values = new Map<string, string>();

@@ -1,4 +1,4 @@
-import type { InputEvent } from "../../../input/keyBindings";
+import type { InputEvent } from "../../../../src/input/keyBindings";
 
 export const clickByLabelRss: InputEvent = {
   type: "Click",

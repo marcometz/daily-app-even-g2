@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createShoppingListScreen } from "./ShoppingListScreen";
-import type { DataService, DashboardData, DetailData, ListData } from "../../services/data/DataService";
-import { SHOPPING_DIVIDER_ITEM_ID, SHOPPING_LIST_ID } from "../../services/data/RssAppDataService";
-import type { ViewModel } from "../../ui/render/renderPipeline";
+import { createShoppingListScreen } from "../../../src/screens/shopping/ShoppingListScreen";
+import type { DataService, DashboardData, DetailData, ListData } from "../../../src/services/data/DataService";
+import { SHOPPING_DIVIDER_ITEM_ID, SHOPPING_LIST_ID } from "../../../src/services/data/RssAppDataService";
+import type { ViewModel } from "../../../src/ui/render/renderPipeline";
 
 describe("ShoppingListScreen", () => {
   it("toggles selected shopping item on click", async () => {

@@ -3,8 +3,8 @@ import {
   RssAppDataService,
   SHOPPING_DIVIDER_ITEM_ID,
   SHOPPING_LIST_ID,
-} from "./RssAppDataService";
-import type { EditableShoppingItem } from "./shoppingConfig";
+} from "../../../src/services/data/RssAppDataService";
+import type { EditableShoppingItem } from "../../../src/services/data/shoppingConfig";
 
 describe("RssAppDataService shopping list", () => {
   it("loads shopping list entries from shopping config service", async () => {
