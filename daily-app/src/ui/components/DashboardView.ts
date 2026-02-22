@@ -39,7 +39,7 @@ function readDescription(dashboard: DashboardData, selectedIndex: number): strin
   }
 
   const description = selectedItem.description?.trim() || "Keine Kurzbeschreibung verfuegbar.";
-  const content = [selectedItem.label, "", description, "", "Click: Oeffnen"].join("\n");
+  const content = [selectedItem.label, "", description].join("\n");
   return content.length <= MAX_INFO_CONTENT_LENGTH
     ? content
     : `${content.slice(0, MAX_INFO_CONTENT_LENGTH - 12)}\n\n[gekuerzt]`;
