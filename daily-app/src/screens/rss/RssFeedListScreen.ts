@@ -4,11 +4,44 @@ import type { DataService, ListData, ListItem } from "../../services/data/DataSe
 import type { Logger } from "../../utils/logger";
 import type { Router } from "../../navigation/router";
 import { clamp } from "../../utils/clamp";
-import { buildListViewModel } from "../../ui/components/ListView";
+import { buildRssFeedListViewModel } from "../../ui/components/RssFeedListView";
 import type { ViewModel } from "../../ui/render/renderPipeline";
-import { readSelectedIndex } from "../shared/readSelectedIndex";
+import { readSelectedIndex, readSelectedItemName } from "../shared/readSelectedIndex";
 
 const STATUS_ITEM_ID = "__status__";
+const PREVIOUS_PAGE_ITEM_ID = "__rss-prev-page__";
+const NEXT_PAGE_ITEM_ID = "__rss-next-page__";
+const PREVIOUS_PAGE_LABEL = "[Zurueck]";
+const NEXT_PAGE_LABEL = "[Naechste Seite]";
+const MAX_ROWS_PER_PAGE = 20;
+
+interface RssItemRow {
+  kind: "item";
+  id: string;
+  label: string;
+  detailItemId: string;
+}
+
+interface RssActionRow {
+  kind: "back" | "next";
+  id: string;
+  label: string;
+}
+
+interface RssStatusRow {
+  kind: "status";
+  id: string;
+  label: string;
+}
+
+type RssRow = RssItemRow | RssActionRow | RssStatusRow;
+
+interface PaginatedRows {
+  title: string;
+  rows: RssRow[];
+  pageIndex: number;
+  pageCount: number;
+}
 
 export function createRssFeedListScreen(
   listId: string,
@@ -17,7 +50,8 @@ export function createRssFeedListScreen(
   router: Router,
   requestRender: () => void
 ): Screen {
-  let selectedIndex = 0;
+  let selectedRowIndex = 0;
+  let pageIndex = 0;
   let isLoading = false;
   let loadError: string | null = null;
   let refreshSequence = 0;
@@ -37,7 +71,9 @@ export function createRssFeedListScreen(
       }
 
       const list = dataService.getList(listId);
-      selectedIndex = clamp(selectedIndex, 0, Math.max(0, list.items.length - 1));
+      const paginated = paginateRows(list, pageIndex, false, null);
+      pageIndex = paginated.pageIndex;
+      selectedRowIndex = clamp(selectedRowIndex, 0, Math.max(0, paginated.rows.length - 1));
     } catch (error) {
       if (sequence !== refreshSequence) {
         return;
@@ -64,27 +100,51 @@ export function createRssFeedListScreen(
     },
     onInput(event: InputEvent) {
       const list = dataService.getList(listId);
-      const hasItems = list.items.length > 0;
-      const maxIndex = Math.max(0, list.items.length - 1);
-      const eventIndex = readSelectedIndex(event);
+      const paginated = paginateRows(list, pageIndex, isLoading, loadError);
+      pageIndex = paginated.pageIndex;
 
-      if (eventIndex !== null && hasItems) {
-        selectedIndex = clamp(eventIndex, 0, maxIndex);
+      const hasRows = paginated.rows.length > 0;
+      const maxRowIndex = Math.max(0, paginated.rows.length - 1);
+      const resolvedIndex = resolveRowSelectionIndex(paginated.rows, event, maxRowIndex);
+
+      if (resolvedIndex !== null && hasRows) {
+        selectedRowIndex = clamp(resolvedIndex, 0, maxRowIndex);
       }
 
-      if (event.type === "Up" && hasItems) {
-        selectedIndex = clamp(selectedIndex - 1, 0, maxIndex);
+      if (event.type === "Up" && hasRows) {
+        selectedRowIndex = clamp(selectedRowIndex - 1, 0, maxRowIndex);
       }
 
-      if (event.type === "Down" && hasItems) {
-        selectedIndex = clamp(selectedIndex + 1, 0, maxIndex);
+      if (event.type === "Down" && hasRows) {
+        selectedRowIndex = clamp(selectedRowIndex + 1, 0, maxRowIndex);
       }
 
-      if (event.type === "Click" && hasItems) {
-        const item = list.items[selectedIndex];
-        if (item && item.id !== STATUS_ITEM_ID) {
-          logger.info(`Open Detail: ${item.id} (index ${selectedIndex})`);
-          router.toDetail(item.id);
+      if (hasRows) {
+        selectedRowIndex = clamp(selectedRowIndex, 0, maxRowIndex);
+      }
+
+      if (event.type === "Click" && hasRows) {
+        const row = paginated.rows[selectedRowIndex];
+        if (row?.kind === "item") {
+          logger.info(`Open Detail: ${row.detailItemId} (row ${selectedRowIndex}, page ${pageIndex + 1})`);
+          router.toDetail(row.detailItemId);
+          return;
+        }
+
+        if (row?.kind === "next") {
+          pageIndex = clamp(pageIndex + 1, 0, Math.max(0, paginated.pageCount - 1));
+          const nextPage = paginateRows(list, pageIndex, isLoading, loadError);
+          pageIndex = nextPage.pageIndex;
+          selectedRowIndex = selectFirstContentRow(nextPage.rows);
+          return;
+        }
+
+        if (row?.kind === "back") {
+          pageIndex = clamp(pageIndex - 1, 0, Math.max(0, paginated.pageCount - 1));
+          const previousPage = paginateRows(list, pageIndex, isLoading, loadError);
+          pageIndex = previousPage.pageIndex;
+          selectedRowIndex = selectNextPageRow(previousPage.rows);
+          return;
         }
       }
 
@@ -93,14 +153,190 @@ export function createRssFeedListScreen(
       }
     },
     getViewModel(): ViewModel {
-      const list = dataService.getList(listId);
-      const visible = withStatusState(list, isLoading, loadError);
-      const maxIndex = Math.max(0, visible.items.length - 1);
-      const boundedIndex = clamp(selectedIndex, 0, maxIndex);
+      const paginated = paginateRows(dataService.getList(listId), pageIndex, isLoading, loadError);
+      pageIndex = paginated.pageIndex;
+      const boundedIndex = clamp(selectedRowIndex, 0, Math.max(0, paginated.rows.length - 1));
+      selectedRowIndex = boundedIndex;
 
-      return buildListViewModel(visible, boundedIndex);
+      return buildRssFeedListViewModel(
+        {
+          id: listId,
+          title: paginated.title,
+          items: paginated.rows.map((row) => ({ id: row.id, label: row.label })),
+        },
+        boundedIndex,
+        `${paginated.pageIndex + 1}/${paginated.pageCount}`
+      );
     },
   };
+}
+
+function selectFirstContentRow(rows: RssRow[]): number {
+  const firstItemIndex = rows.findIndex((row) => row.kind === "item");
+  if (firstItemIndex >= 0) {
+    return firstItemIndex;
+  }
+  return 0;
+}
+
+function selectNextPageRow(rows: RssRow[]): number {
+  const nextRowIndex = rows.findIndex((row) => row.kind === "next");
+  if (nextRowIndex >= 0) {
+    return nextRowIndex;
+  }
+  return Math.max(0, rows.length - 1);
+}
+
+function resolveRowSelectionIndex(
+  rows: RssRow[],
+  event: InputEvent,
+  maxRowIndex: number
+): number | null {
+  const selectedName = readSelectedItemName(event);
+  if (selectedName) {
+    const normalizedName = selectedName.trim().toLowerCase();
+    const byNameIndex = rows.findIndex(
+      (row) => row.label.trim().toLowerCase() === normalizedName || row.id.trim().toLowerCase() === normalizedName
+    );
+    if (byNameIndex >= 0) {
+      return byNameIndex;
+    }
+
+    const numberedMatch = /^item\s*(\d+)$/i.exec(selectedName.trim());
+    if (numberedMatch) {
+      const oneBasedIndex = Number(numberedMatch[1]);
+      if (Number.isFinite(oneBasedIndex) && oneBasedIndex >= 1) {
+        return clamp(oneBasedIndex - 1, 0, maxRowIndex);
+      }
+    }
+  }
+
+  const selectedIndex = readSelectedIndex(event);
+  if (selectedIndex === null) {
+    return null;
+  }
+
+  return normalizeEventIndex(selectedIndex, maxRowIndex);
+}
+
+function normalizeEventIndex(selectedIndex: number, maxIndex: number): number {
+  if (!Number.isFinite(selectedIndex)) {
+    return 0;
+  }
+
+  if (selectedIndex < 0) {
+    return 0;
+  }
+
+  // Prefer zero-based indexes when in-range.
+  if (selectedIndex <= maxIndex) {
+    return clamp(selectedIndex, 0, maxIndex);
+  }
+
+  // One-based fallback for out-of-range payloads.
+  return clamp(selectedIndex - 1, 0, maxIndex);
+}
+
+function paginateRows(
+  list: ListData,
+  requestedPageIndex: number,
+  isLoading: boolean,
+  loadError: string | null
+): PaginatedRows {
+  const visible = withStatusState(list, isLoading, loadError);
+  if (visible.items.length === 0) {
+    return {
+      title: visible.title,
+      rows: [],
+      pageIndex: 0,
+      pageCount: 1,
+    };
+  }
+
+  const hasOnlyStatusItem = visible.items.length === 1 && visible.items[0]?.id === STATUS_ITEM_ID;
+  if (hasOnlyStatusItem) {
+    const statusItem = visible.items[0];
+    if (!statusItem) {
+      return {
+        title: visible.title,
+        rows: [],
+        pageIndex: 0,
+        pageCount: 1,
+      };
+    }
+
+    return {
+      title: visible.title,
+      rows: [{ kind: "status", id: statusItem.id, label: statusItem.label }],
+      pageIndex: 0,
+      pageCount: 1,
+    };
+  }
+
+  const pageStarts = buildPageStarts(visible.items.length);
+  const boundedPageIndex = clamp(requestedPageIndex, 0, Math.max(0, pageStarts.length - 1));
+  const start = pageStarts[boundedPageIndex] ?? 0;
+  const end = pageStarts[boundedPageIndex + 1] ?? visible.items.length;
+  const pageItems = visible.items.slice(start, end);
+  const hasBack = boundedPageIndex > 0;
+  const hasNext = boundedPageIndex < pageStarts.length - 1;
+
+  const rows: RssRow[] = [];
+  if (hasBack) {
+    rows.push({
+      kind: "back",
+      id: PREVIOUS_PAGE_ITEM_ID,
+      label: PREVIOUS_PAGE_LABEL,
+    });
+  }
+
+  for (const item of pageItems) {
+    rows.push({
+      kind: "item",
+      id: item.id,
+      label: item.label,
+      detailItemId: item.id,
+    });
+  }
+
+  if (hasNext) {
+    rows.push({
+      kind: "next",
+      id: NEXT_PAGE_ITEM_ID,
+      label: NEXT_PAGE_LABEL,
+    });
+  }
+
+  return {
+    title: visible.title,
+    rows,
+    pageIndex: boundedPageIndex,
+    pageCount: pageStarts.length,
+  };
+}
+
+function buildPageStarts(totalItemCount: number): number[] {
+  const starts: number[] = [];
+  let page = 0;
+  let cursor = 0;
+
+  while (cursor < totalItemCount) {
+    starts.push(cursor);
+    const remaining = totalItemCount - cursor;
+    const contentSlots = resolveContentSlotsForPage(page, remaining);
+    cursor += contentSlots;
+    page += 1;
+  }
+
+  return starts.length > 0 ? starts : [0];
+}
+
+function resolveContentSlotsForPage(page: number, remainingItems: number): number {
+  const reserveBack = page > 0 ? 1 : 0;
+  const slotsWithoutNext = MAX_ROWS_PER_PAGE - reserveBack;
+  const needsNext = remainingItems > slotsWithoutNext;
+  const slotsWithControls = needsNext ? slotsWithoutNext - 1 : slotsWithoutNext;
+  return Math.max(1, slotsWithControls);
 }
 
 function withStatusState(list: ListData, isLoading: boolean, loadError: string | null): ListData {
