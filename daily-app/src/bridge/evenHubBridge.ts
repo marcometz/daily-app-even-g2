@@ -1,5 +1,6 @@
 import {
   OsEventTypeList,
+  StartUpPageCreateResult,
   waitForEvenAppBridge,
   type EvenHubEvent,
   type TextContainerUpgrade,
@@ -14,19 +15,34 @@ export class EvenHubBridge {
   private startupInFlight: Promise<boolean> | null = null;
   private bridge: Awaited<ReturnType<typeof waitForEvenAppBridge>> | null = null;
   private inputHandler: ((event: InputEvent) => void) | null = null;
+  private evenHubUnsubscribe: (() => void) | null = null;
 
   async connect(): Promise<void> {
+    if (this.ready && this.bridge) {
+      return;
+    }
+
     this.bridge = await waitForEvenAppBridge();
     this.ready = true;
 
     if (this.bridge.onEvenHubEvent) {
-      this.bridge.onEvenHubEvent((event: EvenHubEvent) => {
+      this.evenHubUnsubscribe = this.bridge.onEvenHubEvent((event: EvenHubEvent) => {
         const input = mapEvenHubEvent(event, OsEventTypeList);
         if (input && this.inputHandler) {
           this.inputHandler(input);
         }
       });
     }
+  }
+
+  disconnect(): void {
+    this.evenHubUnsubscribe?.();
+    this.evenHubUnsubscribe = null;
+    this.inputHandler = null;
+    this.bridge = null;
+    this.ready = false;
+    this.created = false;
+    this.startupInFlight = null;
   }
 
   onInput(handler: (event: InputEvent) => void): void {
@@ -46,12 +62,7 @@ export class EvenHubBridge {
 
     this.startupInFlight = (async () => {
       const rawResult = await this.bridge!.createStartUpPageContainer(payload);
-      const startupOk =
-        rawResult === 0 ||
-        rawResult === true ||
-        rawResult === "0" ||
-        rawResult === "success" ||
-        rawResult === "APP_REQUEST_CREATE_PAGE_SUCCESS";
+      const startupOk = isStartupSuccess(rawResult);
 
       // Never downgrade once startup has succeeded.
       if (startupOk) {
@@ -81,4 +92,32 @@ export class EvenHubBridge {
     }
     return this.bridge.textContainerUpgrade(payload);
   }
+}
+
+function isStartupSuccess(rawResult: unknown): boolean {
+  if (rawResult === StartUpPageCreateResult.success || rawResult === 0) {
+    return true;
+  }
+
+  if (rawResult === true) {
+    return true;
+  }
+
+  if (typeof rawResult === "string") {
+    const normalized = rawResult.trim();
+    if (normalized === "0" || normalized === "success" || normalized === "APP_REQUEST_CREATE_PAGE_SUCCESS") {
+      return true;
+    }
+
+    const numeric = Number(normalized);
+    if (Number.isFinite(numeric)) {
+      return numeric === StartUpPageCreateResult.success;
+    }
+  }
+
+  if (typeof rawResult === "number") {
+    return rawResult === StartUpPageCreateResult.success;
+  }
+
+  return false;
 }

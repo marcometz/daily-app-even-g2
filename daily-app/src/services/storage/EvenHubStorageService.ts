@@ -1,14 +1,17 @@
-import { waitForEvenAppBridge } from "@evenrealities/even_hub_sdk";
+import {
+  createEvenHubStorageBridge,
+  type EvenHubStorageBridge,
+} from "../../bridge/evenHubStorageBridge";
 import type { StorageService } from "./StorageService";
 
 export class EvenHubStorageService implements StorageService {
+  constructor(private readonly storageBridge: EvenHubStorageBridge = createEvenHubStorageBridge()) {}
+
   async get(key: string): Promise<string> {
-    const bridge = await waitForEvenAppBridge();
-    return bridge.getLocalStorage(key);
+    return this.storageBridge.getLocalStorage(key);
   }
 
   async set(key: string, value: string): Promise<boolean> {
-    const bridge = await waitForEvenAppBridge();
-    return bridge.setLocalStorage(key, value);
+    return this.storageBridge.setLocalStorage(key, value);
   }
 }

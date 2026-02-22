@@ -1,16 +1,16 @@
-import type { TextContainerProperty, ListContainerProperty } from "@evenrealities/even_hub_sdk";
+import type { TextContainerPayload, ListContainerPayload } from "../../bridge/evenHubTypes";
 import type { ViewModel, TextViewModel, ListViewModel } from "../render/renderPipeline";
 import { CONTAINER_IDS } from "./containerIds";
 
 export interface LayoutPayload {
-  textObject?: TextContainerProperty[];
-  listObject?: ListContainerProperty[];
+  textObject?: TextContainerPayload[];
+  listObject?: ListContainerPayload[];
   containerTotalNum: number;
 }
 
 export function buildLayout(viewModel: ViewModel): LayoutPayload {
-  const textContainers: TextContainerProperty[] = [];
-  const listContainers: ListContainerProperty[] = [];
+  const textContainers: TextContainerPayload[] = [];
+  const listContainers: ListContainerPayload[] = [];
 
   const hasText = viewModel.containers.some((container) => container.type === "text");
   const hasList = viewModel.containers.some((container) => container.type === "list");

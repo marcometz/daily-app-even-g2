@@ -1,5 +1,5 @@
-import type { EvenHubEvent, OsEventTypeList } from "@evenrealities/even_hub_sdk";
 import type { InputEvent } from "./keyBindings";
+import type { EvenHubEventPayload, OsEventTypeResolver } from "../bridge/evenHubTypes";
 
 const typeMap: Record<number, InputEvent["type"]> = {
   0: "Click",
@@ -9,8 +9,8 @@ const typeMap: Record<number, InputEvent["type"]> = {
 };
 
 export function mapEvenHubEvent(
-  event: EvenHubEvent,
-  osEnum: typeof OsEventTypeList
+  event: EvenHubEventPayload,
+  osEnum: OsEventTypeResolver
 ): InputEvent | null {
   const listType = readEventTypeFromEventPart(event.listEvent);
   const textType = readEventTypeFromEventPart(event.textEvent);
@@ -38,7 +38,7 @@ export function mapEvenHubEvent(
   return null;
 }
 
-function readEventTypeFromJsonData(event: EvenHubEvent): unknown {
+function readEventTypeFromJsonData(event: EvenHubEventPayload): unknown {
   const record = normalizeRecord(event.jsonData);
   if (!record) {
     return undefined;
@@ -56,7 +56,7 @@ function readEventTypeFromEventPart(part: unknown): unknown {
 
 function mapKnownEventType(
   rawTypes: unknown[],
-  osEnum: typeof OsEventTypeList
+  osEnum: OsEventTypeResolver
 ): InputEvent["type"] | null {
   for (const rawType of rawTypes) {
     if (rawType === undefined) {
@@ -90,7 +90,7 @@ function normalizeEventTypeValue(rawType: unknown): unknown {
   return rawType;
 }
 
-function hasListSelectionPayload(event: EvenHubEvent): boolean {
+function hasListSelectionPayload(event: EvenHubEventPayload): boolean {
   return (
     hasSelectionPayloadInRecord(event.listEvent) ||
     hasSelectionPayloadInRecord(event.jsonData)
