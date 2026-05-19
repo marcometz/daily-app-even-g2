@@ -167,6 +167,63 @@ describe("buildLayout", () => {
     ]);
   });
 
+  it("renders text-pager title as its own rounded bordered container", () => {
+    const viewModel: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "title", content: "Article title", eventCapture: 0 },
+        { type: "text", id: "body", content: "Body", eventCapture: 1 },
+        { type: "text", id: "pager", content: "1/2 | Auto AUS", eventCapture: 0 },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.containerTotalNum).toBe(3);
+    expect(layout.textObject).toEqual([
+      {
+        xPosition: 0,
+        yPosition: 0,
+        width: 576,
+        height: 52,
+        borderWidth: 1,
+        borderRadius: 6,
+        paddingLength: 6,
+        containerID: 1,
+        containerName: "text-1",
+        content: "Article title",
+        isEventCapture: 0,
+      },
+      {
+        xPosition: 0,
+        yPosition: 62,
+        width: 576,
+        height: 178,
+        borderWidth: 0,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 3,
+        containerName: "text-2",
+        content: "Body",
+        isEventCapture: 1,
+      },
+      {
+        xPosition: 0,
+        yPosition: 250,
+        width: 576,
+        height: 30,
+        borderWidth: 0,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 4,
+        containerName: "text-3",
+        content: "1/2 | Auto AUS",
+        isEventCapture: 0,
+      },
+    ]);
+  });
+
   it("assigns event capture to the first eligible container only", () => {
     const viewModel: ViewModel = {
       title: "Dashboard",
@@ -262,7 +319,31 @@ describe("buildLayout", () => {
     const label = layout.listObject?.[0]?.itemContainer?.itemName?.[0];
 
     expect(label).toBeDefined();
-    expect(label?.length).toBe(64);
+    expect(new TextEncoder().encode(label).length).toBeLessThanOrEqual(63);
+    expect(label?.endsWith("...")).toBe(true);
+  });
+
+  it("truncates multibyte list labels to the simulator byte limit", () => {
+    const longLabel = `${"Ä".repeat(31)}ABCD`;
+    const viewModel: ViewModel = {
+      title: "Long multibyte label",
+      containers: [
+        {
+          type: "list",
+          id: "list-long-multibyte",
+          title: "Long multibyte label",
+          items: [longLabel],
+          selectedIndex: 0,
+          eventCapture: 1,
+        },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+    const label = layout.listObject?.[0]?.itemContainer?.itemName?.[0];
+
+    expect(label).toBeDefined();
+    expect(new TextEncoder().encode(label).length).toBeLessThanOrEqual(63);
     expect(label?.endsWith("...")).toBe(true);
   });
 

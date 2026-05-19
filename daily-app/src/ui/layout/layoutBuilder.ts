@@ -9,11 +9,12 @@ import { clamp } from "../../utils/clamp";
 import { CONTAINER_IDS } from "./containerIds";
 
 const MAX_LIST_ITEM_COUNT = 20;
-const MAX_LIST_ITEM_NAME_LENGTH = 64;
+const MAX_LIST_ITEM_NAME_BYTES = 63;
 const MAX_TEXT_CONTAINER_COUNT = 8;
 const MAX_IMAGE_CONTAINER_COUNT = 4;
 const MAX_TOTAL_CONTAINER_COUNT = 12;
 const EMPTY_LIST_PLACEHOLDER = "Keine Eintraege verfuegbar.";
+const textEncoder = new TextEncoder();
 
 export interface LayoutPayload {
   textObject?: TextContainerPayload[];
@@ -31,6 +32,7 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
 
   const hasText = viewModel.containers.some((container) => container.type === "text");
   const hasList = viewModel.containers.some((container) => container.type === "list");
+  const textPagerTextCount = viewModel.containers.filter((container) => container.type === "text").length;
   const isTextPager = viewModel.layoutMode === "text-pager" && hasText && !hasList;
   const isListFooter = viewModel.layoutMode === "list-footer" && hasText && hasList;
   const isTwoColumn = viewModel.layoutMode === "two-column" && hasText && hasList;
@@ -52,9 +54,11 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
     if (container.type === "text") {
       const text = container as TextViewModel;
       const textIndex = textContainers.length;
-      const borderedText = isTwoColumn;
+      const isTitleBorder = isTextPagerTitle(textIndex, isTextPager, textPagerTextCount);
+      const borderedText = isTwoColumn || isTitleBorder;
       const textGeometry = resolveTextGeometry(textIndex, {
         isTextPager,
+        textPagerTextCount,
         textX,
         textY,
         textWidth,
@@ -66,7 +70,7 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
         width: textGeometry.width,
         height: textGeometry.height,
         borderWidth: borderedText ? 1 : 0,
-        borderRadius: borderedText ? 4 : 0,
+        borderRadius: isTitleBorder ? 6 : borderedText ? 4 : 0,
         paddingLength: borderedText ? 6 : 0,
         containerID: resolveTextContainerId(textIndex),
         containerName: resolveTextContainerName(textIndex),
@@ -145,6 +149,7 @@ function resolveTextGeometry(
   textIndex: number,
   defaults: {
     isTextPager: boolean;
+    textPagerTextCount: number;
     textX: number;
     textY: number;
     textWidth: number;
@@ -160,6 +165,20 @@ function resolveTextGeometry(
     };
   }
 
+  if (defaults.textPagerTextCount >= 3) {
+    if (textIndex === 0) {
+      return { xPosition: 0, yPosition: 0, width: 576, height: 52 };
+    }
+
+    if (textIndex === 1) {
+      return { xPosition: 0, yPosition: 62, width: 576, height: 178 };
+    }
+
+    if (textIndex === 2) {
+      return { xPosition: 0, yPosition: 250, width: 576, height: 30 };
+    }
+  }
+
   if (textIndex === 0) {
     return { xPosition: 0, yPosition: 0, width: 576, height: 240 };
   }
@@ -169,6 +188,10 @@ function resolveTextGeometry(
   }
 
   return { xPosition: 0, yPosition: 0, width: 576, height: 288 };
+}
+
+function isTextPagerTitle(textIndex: number, isTextPager: boolean, textPagerTextCount: number): boolean {
+  return isTextPager && textPagerTextCount >= 3 && textIndex === 0;
 }
 
 function resolveTextContainerId(index: number): number {
@@ -188,9 +211,28 @@ function normalizeListItems(items: string[]): string[] {
 }
 
 function truncateListItemLabel(label: string): string {
-  if (label.length <= MAX_LIST_ITEM_NAME_LENGTH) {
+  if (utf8ByteLength(label) <= MAX_LIST_ITEM_NAME_BYTES) {
     return label;
   }
 
-  return `${label.slice(0, MAX_LIST_ITEM_NAME_LENGTH - 3)}...`;
+  const suffix = "...";
+  const maxContentBytes = MAX_LIST_ITEM_NAME_BYTES - utf8ByteLength(suffix);
+  let truncated = "";
+  let bytesUsed = 0;
+
+  for (const char of Array.from(label)) {
+    const charBytes = utf8ByteLength(char);
+    if (bytesUsed + charBytes > maxContentBytes) {
+      break;
+    }
+
+    truncated += char;
+    bytesUsed += charBytes;
+  }
+
+  return `${truncated}${suffix}`;
+}
+
+function utf8ByteLength(text: string): number {
+  return textEncoder.encode(text).length;
 }
