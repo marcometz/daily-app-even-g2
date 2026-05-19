@@ -84,6 +84,7 @@ export class RenderPipeline {
       }
 
       if (allUpdated) {
+        await this.pushImageUpdates(imageUpdates);
         this.lastTextContainerKeys = textContainerKeys;
         this.lastTextUpdateSignature = textUpdateSignature;
         return;

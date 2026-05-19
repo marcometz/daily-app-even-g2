@@ -13,6 +13,7 @@ const MAX_LIST_ITEM_NAME_BYTES = 63;
 const MAX_TEXT_CONTAINER_COUNT = 8;
 const MAX_IMAGE_CONTAINER_COUNT = 4;
 const MAX_TOTAL_CONTAINER_COUNT = 12;
+const VISIBLE_BORDER_COLOR = 15;
 const EMPTY_LIST_PLACEHOLDER = "Keine Eintraege verfuegbar.";
 const textEncoder = new TextEncoder();
 
@@ -34,6 +35,9 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
   const hasList = viewModel.containers.some((container) => container.type === "list");
   const textPagerTextCount = viewModel.containers.filter((container) => container.type === "text").length;
   const isTextPager = viewModel.layoutMode === "text-pager" && hasText && !hasList;
+  const hasTextPagerTitle = isTextPager && viewModel.containers.some(
+    (container) => container.type === "text" && container.id === "title"
+  );
   const isListFooter = viewModel.layoutMode === "list-footer" && hasText && hasList;
   const isTwoColumn = viewModel.layoutMode === "two-column" && hasText && hasList;
   const isStackedSplit = !isTwoColumn && !isListFooter && !isTextPager && hasText && hasList;
@@ -54,11 +58,12 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
     if (container.type === "text") {
       const text = container as TextViewModel;
       const textIndex = textContainers.length;
-      const isTitleBorder = isTextPagerTitle(textIndex, isTextPager, textPagerTextCount);
+      const isTitleBorder = isTextPagerTitle(textIndex, isTextPager, hasTextPagerTitle);
       const borderedText = isTwoColumn || isTitleBorder;
       const textGeometry = resolveTextGeometry(textIndex, {
         isTextPager,
         textPagerTextCount,
+        hasTextPagerTitle,
         textX,
         textY,
         textWidth,
@@ -70,6 +75,7 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
         width: textGeometry.width,
         height: textGeometry.height,
         borderWidth: borderedText ? 1 : 0,
+        borderColor: borderedText ? VISIBLE_BORDER_COLOR : undefined,
         borderRadius: isTitleBorder ? 6 : borderedText ? 4 : 0,
         paddingLength: borderedText ? 6 : 0,
         containerID: resolveTextContainerId(textIndex),
@@ -150,6 +156,7 @@ function resolveTextGeometry(
   defaults: {
     isTextPager: boolean;
     textPagerTextCount: number;
+    hasTextPagerTitle: boolean;
     textX: number;
     textY: number;
     textWidth: number;
@@ -165,7 +172,7 @@ function resolveTextGeometry(
     };
   }
 
-  if (defaults.textPagerTextCount >= 3) {
+  if (defaults.hasTextPagerTitle || defaults.textPagerTextCount >= 3) {
     if (textIndex === 0) {
       return { xPosition: 0, yPosition: 0, width: 576, height: 52 };
     }
@@ -190,8 +197,8 @@ function resolveTextGeometry(
   return { xPosition: 0, yPosition: 0, width: 576, height: 288 };
 }
 
-function isTextPagerTitle(textIndex: number, isTextPager: boolean, textPagerTextCount: number): boolean {
-  return isTextPager && textPagerTextCount >= 3 && textIndex === 0;
+function isTextPagerTitle(textIndex: number, isTextPager: boolean, hasTextPagerTitle: boolean): boolean {
+  return isTextPager && hasTextPagerTitle && textIndex === 0;
 }
 
 function resolveTextContainerId(index: number): number {

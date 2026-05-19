@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildDetailViewModel } from "../../../src/ui/components/RssDetailView";
 
 describe("buildDetailViewModel", () => {
-  it("renders detail with a separate title, body, and pager text container", () => {
+  it("renders detail with separate title, body, and dimmable footer image containers", () => {
     const viewModel = buildDetailViewModel(
       {
         id: "item-1",
@@ -16,7 +16,7 @@ describe("buildDetailViewModel", () => {
     );
 
     expect(viewModel.layoutMode).toBe("text-pager");
-    expect(viewModel.containers).toHaveLength(3);
+    expect(viewModel.containers).toHaveLength(4);
     expect(viewModel.containers[0]).toMatchObject({
       type: "text",
       id: "title",
@@ -30,11 +30,30 @@ describe("buildDetailViewModel", () => {
       eventCapture: 1,
     });
     expect(viewModel.containers[2]).toMatchObject({
-      type: "text",
-      id: "pager",
-      content: "2/2 | Auto AN | Quelle: RSS | Heute",
-      eventCapture: 0,
+      type: "image",
+      id: "footer-left",
+      xPosition: 0,
+      yPosition: 250,
+      width: 288,
+      height: 30,
     });
+    expect(viewModel.containers[3]).toMatchObject({
+      type: "image",
+      id: "footer-right",
+      xPosition: 288,
+      yPosition: 250,
+      width: 288,
+      height: 30,
+    });
+    const footerLeft = viewModel.containers[2];
+    const footerRight = viewModel.containers[3];
+    expect(footerLeft?.type).toBe("image");
+    expect(footerRight?.type).toBe("image");
+    if (footerLeft?.type !== "image" || footerRight?.type !== "image") {
+      throw new Error("Expected footer image containers");
+    }
+    expect(typeof footerLeft.imageData).toBe("string");
+    expect(typeof footerRight.imageData).toBe("string");
   });
 
   it("keeps a long RSS title inside its own bounded container content", () => {

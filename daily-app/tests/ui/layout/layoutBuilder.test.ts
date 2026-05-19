@@ -43,6 +43,7 @@ describe("buildLayout", () => {
       width: 288,
       height: 288,
       borderWidth: 1,
+      borderColor: 15,
       borderRadius: 4,
       paddingLength: 6,
       isEventCapture: 0,
@@ -144,6 +145,7 @@ describe("buildLayout", () => {
         width: 576,
         height: 240,
         borderWidth: 0,
+        borderColor: undefined,
         borderRadius: 0,
         paddingLength: 0,
         containerID: 1,
@@ -157,6 +159,7 @@ describe("buildLayout", () => {
         width: 576,
         height: 30,
         borderWidth: 0,
+        borderColor: undefined,
         borderRadius: 0,
         paddingLength: 0,
         containerID: 3,
@@ -188,6 +191,7 @@ describe("buildLayout", () => {
         width: 576,
         height: 52,
         borderWidth: 1,
+        borderColor: 15,
         borderRadius: 6,
         paddingLength: 6,
         containerID: 1,
@@ -201,6 +205,7 @@ describe("buildLayout", () => {
         width: 576,
         height: 178,
         borderWidth: 0,
+        borderColor: undefined,
         borderRadius: 0,
         paddingLength: 0,
         containerID: 3,
@@ -214,12 +219,106 @@ describe("buildLayout", () => {
         width: 576,
         height: 30,
         borderWidth: 0,
+        borderColor: undefined,
         borderRadius: 0,
         paddingLength: 0,
         containerID: 4,
         containerName: "text-3",
         content: "1/2 | Auto AUS",
         isEventCapture: 0,
+      },
+    ]);
+  });
+
+  it("renders text-pager title and body above footer image containers", () => {
+    const viewModel: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "title", content: "Article title", eventCapture: 0 },
+        { type: "text", id: "body", content: "Body", eventCapture: 1 },
+        {
+          type: "image",
+          id: "footer-left",
+          imageData: new Uint8Array([1]),
+          xPosition: 0,
+          yPosition: 250,
+          width: 288,
+          height: 30,
+        },
+        {
+          type: "image",
+          id: "footer-right",
+          imageData: new Uint8Array([2]),
+          xPosition: 288,
+          yPosition: 250,
+          width: 288,
+          height: 30,
+        },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.containerTotalNum).toBe(4);
+    expect(layout.textObject).toEqual([
+      {
+        xPosition: 0,
+        yPosition: 0,
+        width: 576,
+        height: 52,
+        borderWidth: 1,
+        borderColor: 15,
+        borderRadius: 6,
+        paddingLength: 6,
+        containerID: 1,
+        containerName: "text-1",
+        content: "Article title",
+        isEventCapture: 0,
+      },
+      {
+        xPosition: 0,
+        yPosition: 62,
+        width: 576,
+        height: 178,
+        borderWidth: 0,
+        borderColor: undefined,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 3,
+        containerName: "text-2",
+        content: "Body",
+        isEventCapture: 1,
+      },
+    ]);
+    expect(layout.imageObject).toEqual([
+      {
+        xPosition: 0,
+        yPosition: 250,
+        width: 288,
+        height: 30,
+        containerID: 10,
+        containerName: "img-1",
+      },
+      {
+        xPosition: 288,
+        yPosition: 250,
+        width: 288,
+        height: 30,
+        containerID: 11,
+        containerName: "img-2",
+      },
+    ]);
+    expect(layout.imageUpdates).toEqual([
+      {
+        containerID: 10,
+        containerName: "img-1",
+        imageData: new Uint8Array([1]),
+      },
+      {
+        containerID: 11,
+        containerName: "img-2",
+        imageData: new Uint8Array([2]),
       },
     ]);
   });

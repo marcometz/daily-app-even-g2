@@ -132,6 +132,61 @@ describe("RenderPipeline", () => {
     });
   });
 
+  it("pushes image updates after matching text-container delta updates", async () => {
+    const bridge = createBridgeStub();
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const first: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "title", content: "Title 1", eventCapture: 0 },
+        { type: "text", id: "body", content: "Page 1", eventCapture: 1 },
+        {
+          type: "image",
+          id: "footer-left",
+          imageData: [1],
+          xPosition: 0,
+          yPosition: 250,
+          width: 288,
+          height: 30,
+        },
+      ],
+    };
+    const second: ViewModel = {
+      ...first,
+      containers: [
+        { type: "text", id: "title", content: "Title 2", eventCapture: 0 },
+        { type: "text", id: "body", content: "Page 2", eventCapture: 1 },
+        {
+          type: "image",
+          id: "footer-left",
+          imageData: [2],
+          xPosition: 0,
+          yPosition: 250,
+          width: 288,
+          height: 30,
+        },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.rebuild).not.toHaveBeenCalled();
+    expect(bridge.updateText).toHaveBeenCalledTimes(2);
+    expect(bridge.updateImage).toHaveBeenNthCalledWith(1, {
+      containerID: 10,
+      containerName: "img-1",
+      imageData: [1],
+    });
+    expect(bridge.updateImage).toHaveBeenNthCalledWith(2, {
+      containerID: 10,
+      containerName: "img-1",
+      imageData: [2],
+    });
+  });
+
   it("updates dashboard info text without rebuilding the list layout", async () => {
     const bridge = createBridgeStub();
     const logger = createLoggerStub();
