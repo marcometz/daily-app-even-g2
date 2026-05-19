@@ -239,6 +239,73 @@ describe("RenderPipeline", () => {
     });
   });
 
+  it("rebuilds dashboard text menu when selected row and info panel change", async () => {
+    const bridge = createBridgeStub();
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const first: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "dashboard-menu",
+      containers: [
+        { type: "text", id: "dashboard-event-layer", content: "", eventCapture: 1 },
+        { type: "text", id: "dashboard-menu-item-0-selected", content: "RSS-Feeds", eventCapture: 0 },
+        { type: "text", id: "dashboard-menu-item-1", content: "Shopping List", eventCapture: 0 },
+        { type: "text", id: "dashboard-info", content: "RSS-Feeds\n\nRSS-Beschreibung", eventCapture: 0 },
+      ],
+    };
+    const second: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "dashboard-menu",
+      containers: [
+        { type: "text", id: "dashboard-event-layer", content: "", eventCapture: 1 },
+        { type: "text", id: "dashboard-menu-item-0", content: "RSS-Feeds", eventCapture: 0 },
+        { type: "text", id: "dashboard-menu-item-1-selected", content: "Shopping List", eventCapture: 0 },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "Shopping List\n\nShopping-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.updateText).not.toHaveBeenCalled();
+    expect(bridge.rebuild).toHaveBeenCalledTimes(1);
+    expect(bridge.rebuild).toHaveBeenCalledWith({
+      containerTotalNum: 4,
+      textObject: [
+        expect.objectContaining({
+          containerID: 1,
+          containerName: "text-1",
+          content: "",
+          isEventCapture: 1,
+        }),
+        expect.objectContaining({
+          containerID: 3,
+          containerName: "text-2",
+          content: "RSS-Feeds",
+          isEventCapture: 0,
+        }),
+        expect.objectContaining({
+          containerID: 4,
+          containerName: "text-3",
+          content: "Shopping List",
+          isEventCapture: 0,
+          borderWidth: 1,
+        }),
+        expect.objectContaining({
+          containerID: 5,
+          containerName: "text-4",
+          content: "Shopping List\n\nShopping-Beschreibung",
+          isEventCapture: 0,
+        }),
+      ],
+    });
+  });
+
   it("falls back to rebuild when mixed-layout text update fails", async () => {
     const bridge = createBridgeStub();
     bridge.updateText.mockResolvedValue(false);

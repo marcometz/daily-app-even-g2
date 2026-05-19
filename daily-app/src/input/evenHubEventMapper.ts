@@ -33,6 +33,10 @@ export function mapEvenHubEvent(
       return { type: "Click", raw: event };
     }
 
+    if (hasClickSourcePayload(event)) {
+      return { type: "Click", raw: event };
+    }
+
     if (hasListSelectionPayload(event)) {
       return { type: "SelectionChange", raw: event };
     }
@@ -43,6 +47,28 @@ export function mapEvenHubEvent(
     return { type: "SelectionChange", raw: event };
   }
   return null;
+}
+
+function hasClickSourcePayload(event: EvenHubEventPayload): boolean {
+  return hasEventSourceOnlyPayload(event.sysEvent) || hasEventSourceOnlyPayload(event.jsonData);
+}
+
+function hasEventSourceOnlyPayload(value: unknown): boolean {
+  const record = normalizeRecord(value);
+  if (!record) {
+    return false;
+  }
+
+  const hasEventSource = (
+    "eventSource" in record ||
+    "event_source" in record ||
+    "Event_Source" in record
+  );
+  if (!hasEventSource) {
+    return false;
+  }
+
+  return !hasNonClickSysPayload(record);
 }
 
 function hasNonClickSysPayload(part: unknown): boolean {

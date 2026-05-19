@@ -1,20 +1,24 @@
 import type { DashboardData } from "../../services/data/DataService";
-import type { ListViewModel, TextViewModel, ViewModel } from "../render/renderPipeline";
+import type { TextViewModel, ViewModel } from "../render/renderPipeline";
 
 const MAX_INFO_CONTENT_LENGTH = 240;
 
-function buildDashboardListModel(
-  title: string,
-  items: string[],
-  selectedIndex: number
-): ListViewModel {
+function buildDashboardEventLayerModel(): TextViewModel {
   return {
-    type: "list",
-    id: "dashboard-list",
-    title,
-    items,
-    selectedIndex,
+    type: "text",
+    id: "dashboard-event-layer",
+    content: "",
     eventCapture: 1,
+  };
+}
+
+function buildDashboardMenuItemModel(label: string, index: number, selectedIndex: number): TextViewModel {
+  const isSelected = index === selectedIndex;
+  return {
+    type: "text",
+    id: isSelected ? `dashboard-menu-item-${index}-selected` : `dashboard-menu-item-${index}`,
+    content: label,
+    eventCapture: 0,
   };
 }
 
@@ -65,15 +69,19 @@ export function buildDashboardViewModel(
   dashboard: DashboardData,
   selectedIndex: number
 ): ViewModel {
+  const safeSelectedIndex = clampIndex(selectedIndex, dashboard.items.length);
+  const menuItems = dashboard.items.length > 0
+    ? dashboard.items
+        .slice(0, 2)
+        .map((item, index) => buildDashboardMenuItemModel(item.label, index, safeSelectedIndex))
+    : [buildDashboardMenuItemModel("Keine Menuepunkte", 0, 0)];
+
   return {
     title: dashboard.title,
-    layoutMode: "two-column",
+    layoutMode: "dashboard-menu",
     containers: [
-      buildDashboardListModel(
-        dashboard.title,
-        dashboard.items.map((item) => item.label),
-        clampIndex(selectedIndex, dashboard.items.length)
-      ),
+      buildDashboardEventLayerModel(),
+      ...menuItems,
       buildDashboardInfoModel(readDescription(dashboard, selectedIndex)),
     ],
   };

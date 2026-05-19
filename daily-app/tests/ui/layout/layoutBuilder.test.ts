@@ -51,6 +51,101 @@ describe("buildLayout", () => {
     expect(list?.itemContainer?.itemWidth).toBe(269);
   });
 
+  it("renders dashboard text menu with selected row border and info panel", () => {
+    const viewModel: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "dashboard-menu",
+      containers: [
+        {
+          type: "text",
+          id: "dashboard-event-layer",
+          content: "",
+          eventCapture: 1,
+        },
+        {
+          type: "text",
+          id: "dashboard-menu-item-0",
+          content: "RSS-Feeds",
+          eventCapture: 0,
+        },
+        {
+          type: "text",
+          id: "dashboard-menu-item-1-selected",
+          content: "Shopping List",
+          eventCapture: 0,
+        },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "Shopping List\n\nShopping-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.containerTotalNum).toBe(4);
+    expect(layout.textObject).toEqual([
+      {
+        xPosition: 0,
+        yPosition: 0,
+        width: 576,
+        height: 288,
+        borderWidth: 0,
+        borderColor: undefined,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 1,
+        containerName: "text-1",
+        content: "",
+        isEventCapture: 1,
+      },
+      {
+        xPosition: 0,
+        yPosition: 104,
+        width: 270,
+        height: 40,
+        borderWidth: 0,
+        borderColor: undefined,
+        borderRadius: 0,
+        paddingLength: 6,
+        containerID: 3,
+        containerName: "text-2",
+        content: "RSS-Feeds",
+        isEventCapture: 0,
+      },
+      {
+        xPosition: 0,
+        yPosition: 152,
+        width: 270,
+        height: 40,
+        borderWidth: 1,
+        borderColor: 15,
+        borderRadius: 6,
+        paddingLength: 6,
+        containerID: 4,
+        containerName: "text-3",
+        content: "Shopping List",
+        isEventCapture: 0,
+      },
+      {
+        xPosition: 288,
+        yPosition: 0,
+        width: 288,
+        height: 288,
+        borderWidth: 1,
+        borderColor: 15,
+        borderRadius: 4,
+        paddingLength: 6,
+        containerID: 5,
+        containerName: "text-4",
+        content: "Shopping List\n\nShopping-Beschreibung",
+        isEventCapture: 0,
+      },
+    ]);
+  });
+
   it("keeps stacked split layout when no two-column mode is requested", () => {
     const viewModel: ViewModel = {
       title: "Any",

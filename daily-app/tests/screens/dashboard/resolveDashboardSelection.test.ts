@@ -144,7 +144,18 @@ describe("DashboardScreen integration", () => {
     expect(toList).toHaveBeenCalledWith(SHOPPING_LIST_ID);
   });
 
-  it("renders two columns and shows description for selected menu item", () => {
+  it("opens the selected shopping app on a payload-less click after down navigation", () => {
+    const toList = vi.fn<(listId: string) => void>();
+    const router = { toList, toDetail: vi.fn(), back: vi.fn() };
+    const screen = createDashboardScreen(router, createDataService(dashboardItems), createLogger());
+
+    screen.onInput(downEvent);
+    screen.onInput({ type: "Click", raw: { jsonData: { eventSource: 1 } } });
+
+    expect(toList).toHaveBeenCalledWith(SHOPPING_LIST_ID);
+  });
+
+  it("renders text menu and shows description for selected menu item", () => {
     const screen = createDashboardScreen(
       createRouter(),
       createDataService(dashboardItems),
@@ -152,11 +163,27 @@ describe("DashboardScreen integration", () => {
     );
 
     const viewModel = screen.getViewModel();
-    expect(viewModel.layoutMode).toBe("two-column");
-    expect(viewModel.containers).toHaveLength(2);
-    expect(viewModel.containers[0]?.type).toBe("list");
-    expect(viewModel.containers[1]?.type).toBe("text");
-    const infoContainer = viewModel.containers[1];
+    expect(viewModel.layoutMode).toBe("dashboard-menu");
+    expect(viewModel.containers).toHaveLength(4);
+    expect(viewModel.containers[0]).toMatchObject({
+      type: "text",
+      id: "dashboard-event-layer",
+      content: "",
+      eventCapture: 1,
+    });
+    expect(viewModel.containers[1]).toMatchObject({
+      type: "text",
+      id: "dashboard-menu-item-0-selected",
+      content: "RSS-Feeds",
+      eventCapture: 0,
+    });
+    expect(viewModel.containers[2]).toMatchObject({
+      type: "text",
+      id: "dashboard-menu-item-1",
+      content: "Shopping List",
+      eventCapture: 0,
+    });
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -171,7 +198,7 @@ describe("DashboardScreen integration", () => {
     );
 
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -187,7 +214,17 @@ describe("DashboardScreen integration", () => {
 
     screen.onInput(downEvent);
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    expect(viewModel.containers[1]).toMatchObject({
+      type: "text",
+      id: "dashboard-menu-item-0",
+      eventCapture: 0,
+    });
+    expect(viewModel.containers[2]).toMatchObject({
+      type: "text",
+      id: "dashboard-menu-item-1-selected",
+      eventCapture: 0,
+    });
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -236,7 +273,7 @@ describe("DashboardScreen integration", () => {
 
     screen.onInput(clickByLabelShopping);
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -282,7 +319,7 @@ describe("DashboardScreen integration", () => {
 
     screen.onInput(hoverByLabelShopping);
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -306,7 +343,7 @@ describe("DashboardScreen integration", () => {
 
     screen.onInput(hoverByProtoIndexSecond);
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    const infoContainer = viewModel.containers[3];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }
@@ -325,7 +362,7 @@ describe("DashboardScreen integration", () => {
     );
 
     const viewModel = screen.getViewModel();
-    const infoContainer = viewModel.containers[1];
+    const infoContainer = viewModel.containers[2];
     if (!infoContainer || infoContainer.type !== "text") {
       throw new Error("Expected text info container");
     }

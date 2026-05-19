@@ -35,12 +35,13 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
   const hasList = viewModel.containers.some((container) => container.type === "list");
   const textPagerTextCount = viewModel.containers.filter((container) => container.type === "text").length;
   const isTextPager = viewModel.layoutMode === "text-pager" && hasText && !hasList;
+  const isDashboardMenu = viewModel.layoutMode === "dashboard-menu" && hasText && !hasList;
   const hasTextPagerTitle = isTextPager && viewModel.containers.some(
     (container) => container.type === "text" && container.id === "title"
   );
   const isListFooter = viewModel.layoutMode === "list-footer" && hasText && hasList;
   const isTwoColumn = viewModel.layoutMode === "two-column" && hasText && hasList;
-  const isStackedSplit = !isTwoColumn && !isListFooter && !isTextPager && hasText && hasList;
+  const isStackedSplit = !isTwoColumn && !isListFooter && !isTextPager && !isDashboardMenu && hasText && hasList;
 
   const textX = isTwoColumn ? 288 : isListFooter ? 488 : 0;
   const textY = isListFooter ? 264 : 0;
@@ -59,9 +60,13 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
       const text = container as TextViewModel;
       const textIndex = textContainers.length;
       const isTitleBorder = isTextPagerTitle(textIndex, isTextPager, hasTextPagerTitle);
-      const borderedText = isTwoColumn || isTitleBorder;
+      const isDashboardMenuItem = isDashboardMenu && text.id.startsWith("dashboard-menu-item-");
+      const isDashboardSelectedItem = isDashboardMenuItem && text.id.endsWith("-selected");
+      const isDashboardInfo = isDashboardMenu && textIndex === viewModel.containers.length - 1;
+      const borderedText = isTwoColumn || isTitleBorder || isDashboardSelectedItem || isDashboardInfo;
       const textGeometry = resolveTextGeometry(textIndex, {
         isTextPager,
+        isDashboardMenu,
         textPagerTextCount,
         hasTextPagerTitle,
         textX,
@@ -76,8 +81,8 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
         height: textGeometry.height,
         borderWidth: borderedText ? 1 : 0,
         borderColor: borderedText ? VISIBLE_BORDER_COLOR : undefined,
-        borderRadius: isTitleBorder ? 6 : borderedText ? 4 : 0,
-        paddingLength: borderedText ? 6 : 0,
+        borderRadius: isTitleBorder || isDashboardSelectedItem ? 6 : borderedText ? 4 : 0,
+        paddingLength: borderedText || isDashboardMenuItem ? 6 : 0,
         containerID: resolveTextContainerId(textIndex),
         containerName: resolveTextContainerName(textIndex),
         content: text.content,
@@ -155,6 +160,7 @@ function resolveTextGeometry(
   textIndex: number,
   defaults: {
     isTextPager: boolean;
+    isDashboardMenu: boolean;
     textPagerTextCount: number;
     hasTextPagerTitle: boolean;
     textX: number;
@@ -164,6 +170,22 @@ function resolveTextGeometry(
   }
 ): { xPosition: number; yPosition: number; width: number; height: number } {
   if (!defaults.isTextPager) {
+    if (defaults.isDashboardMenu) {
+      if (textIndex === 0) {
+        return { xPosition: 0, yPosition: 0, width: 576, height: 288 };
+      }
+
+      if (textIndex === 1) {
+        return { xPosition: 0, yPosition: 104, width: 270, height: 40 };
+      }
+
+      if (textIndex === 2) {
+        return { xPosition: 0, yPosition: 152, width: 270, height: 40 };
+      }
+
+      return { xPosition: 288, yPosition: 0, width: 288, height: 288 };
+    }
+
     return {
       xPosition: defaults.textX,
       yPosition: defaults.textY,

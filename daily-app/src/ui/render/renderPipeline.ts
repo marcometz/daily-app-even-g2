@@ -32,7 +32,7 @@ export interface ImageViewModel {
 
 export interface ViewModel {
   title: string;
-  layoutMode?: "stacked" | "two-column" | "list-footer" | "text-pager";
+  layoutMode?: "stacked" | "two-column" | "list-footer" | "text-pager" | "dashboard-menu";
   containers: Array<TextViewModel | ListViewModel | ImageViewModel>;
 }
 

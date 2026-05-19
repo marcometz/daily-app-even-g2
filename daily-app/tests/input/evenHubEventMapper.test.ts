@@ -88,6 +88,16 @@ describe("mapEvenHubEvent", () => {
     expect(mapped).toEqual({ type: "Click", raw: event });
   });
 
+  it("maps event-source-only jsonData payload to Click", () => {
+    const event = {
+      jsonData: { eventSource: 1 },
+    } as unknown as EvenHubEventPayload;
+
+    const mapped = mapEvenHubEvent(event, mockOsEventTypeList);
+
+    expect(mapped).toEqual({ type: "Click", raw: event });
+  });
+
   it("does not treat sys event without eventType but with IMU payload as Click", () => {
     const event = {
       sysEvent: { imuData: { x: 1, y: 2, z: 3 } },
