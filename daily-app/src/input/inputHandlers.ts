@@ -5,6 +5,11 @@ import type { Logger } from "../utils/logger";
 export function createInputDispatcher(stack: ScreenStack, logger: Logger) {
   return (event: InputEvent) => {
     logger.debug(`Input: ${event.type}`);
+    if (event.type === "SystemExit") {
+      logger.info("System exit event received");
+      return;
+    }
+
     const screen = stack.current();
     if (screen) {
       logger.debug(`Input target screen: ${screen.id}`);

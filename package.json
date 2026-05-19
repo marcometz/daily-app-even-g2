@@ -3,6 +3,6 @@
     "start:even": "bash ./scripts/start-even-dev.sh"
   },
   "dependencies": {
-    "@evenrealities/evenhub-cli": "^0.1.5"
+    "@evenrealities/evenhub-cli": "^0.1.13"
   }
 }

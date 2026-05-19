@@ -10,6 +10,8 @@ const mockOsEventTypeList = {
   FOREGROUND_ENTER_EVENT: 4,
   FOREGROUND_EXIT_EVENT: 5,
   ABNORMAL_EXIT_EVENT: 6,
+  SYSTEM_EXIT_EVENT: 7,
+  IMU_DATA_REPORT: 8,
   fromJson(raw: unknown): number | undefined {
     if (typeof raw === "number" && Number.isFinite(raw)) {
       return raw;
@@ -33,6 +35,8 @@ const mockOsEventTypeList = {
       if (trimmed === "FOREGROUND_ENTER_EVENT") return 4;
       if (trimmed === "FOREGROUND_EXIT_EVENT") return 5;
       if (trimmed === "ABNORMAL_EXIT_EVENT") return 6;
+      if (trimmed === "SYSTEM_EXIT_EVENT") return 7;
+      if (trimmed === "IMU_DATA_REPORT") return 8;
     }
 
     return undefined;
@@ -156,6 +160,29 @@ describe("mapEvenHubEvent", () => {
   it("ignores unknown list event type without selection payload", () => {
     const event = {
       listEvent: { eventType: "ITEM_HOVER_EVENT" },
+    } as unknown as EvenHubEventPayload;
+
+    const mapped = mapEvenHubEvent(event, mockOsEventTypeList);
+
+    expect(mapped).toBeNull();
+  });
+
+  it("maps system exit event to SystemExit", () => {
+    const event = {
+      sysEvent: { eventType: mockOsEventTypeList.SYSTEM_EXIT_EVENT, systemExitReasonCode: 1 },
+    } as unknown as EvenHubEventPayload;
+
+    const mapped = mapEvenHubEvent(event, mockOsEventTypeList);
+
+    expect(mapped).toEqual({ type: "SystemExit", raw: event });
+  });
+
+  it("ignores IMU report events so motion streams do not trigger screen rerenders", () => {
+    const event = {
+      sysEvent: {
+        eventType: mockOsEventTypeList.IMU_DATA_REPORT,
+        imuData: { x: 1, y: 2, z: 3 },
+      },
     } as unknown as EvenHubEventPayload;
 
     const mapped = mapEvenHubEvent(event, mockOsEventTypeList);

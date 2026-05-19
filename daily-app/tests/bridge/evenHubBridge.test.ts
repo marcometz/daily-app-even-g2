@@ -3,8 +3,17 @@ import { waitForEvenAppBridge } from "@evenrealities/even_hub_sdk";
 import { mapEvenHubEvent } from "../../src/input/evenHubEventMapper";
 import { EvenHubBridge } from "../../src/bridge/evenHubBridge";
 import type { StartupPayload } from "../../src/bridge/evenHubTypes";
+import type { InputEvent } from "../../src/input/keyBindings";
 
 vi.mock("@evenrealities/even_hub_sdk", () => ({
+  ImageRawDataUpdateResult: {
+    success: "success",
+    sendFailed: "sendFailed",
+  },
+  ImuReportPace: {
+    P100: 100,
+    P500: 500,
+  },
   OsEventTypeList: {
     fromJson: (value: unknown) => value,
   },
@@ -23,17 +32,25 @@ vi.mock("../../src/input/evenHubEventMapper", () => ({
 
 type MockSdkBridge = {
   onEvenHubEvent: ReturnType<typeof vi.fn>;
+  onLaunchSource: ReturnType<typeof vi.fn>;
   createStartUpPageContainer: ReturnType<typeof vi.fn>;
   rebuildPageContainer: ReturnType<typeof vi.fn>;
   textContainerUpgrade: ReturnType<typeof vi.fn>;
+  updateImageRawData: ReturnType<typeof vi.fn>;
+  audioControl: ReturnType<typeof vi.fn>;
+  imuControl: ReturnType<typeof vi.fn>;
 };
 
 function createMockSdkBridge(): MockSdkBridge {
   return {
     onEvenHubEvent: vi.fn(),
+    onLaunchSource: vi.fn(),
     createStartUpPageContainer: vi.fn(),
     rebuildPageContainer: vi.fn(),
     textContainerUpgrade: vi.fn(),
+    updateImageRawData: vi.fn(),
+    audioControl: vi.fn(),
+    imuControl: vi.fn(),
   };
 }
 
@@ -62,9 +79,10 @@ describe("EvenHubBridge", () => {
     const sdkBridge = createMockSdkBridge();
     const unsubscribe = vi.fn();
     sdkBridge.onEvenHubEvent.mockReturnValue(unsubscribe);
+    sdkBridge.onLaunchSource.mockReturnValue(vi.fn());
     vi.mocked(waitForEvenAppBridge).mockResolvedValue(sdkBridge as unknown as Awaited<ReturnType<typeof waitForEvenAppBridge>>);
 
-    const mappedInput = { type: "Click", raw: { source: "sdk" } };
+    const mappedInput: InputEvent = { type: "Click", raw: { source: "sdk" } };
     vi.mocked(mapEvenHubEvent).mockReturnValue(mappedInput);
 
     const bridge = new EvenHubBridge();
@@ -82,6 +100,30 @@ describe("EvenHubBridge", () => {
 
     bridge.disconnect();
     expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("subscribes to launch source events and disconnect cleans up subscription", async () => {
+    const sdkBridge = createMockSdkBridge();
+    const unsubscribeLaunch = vi.fn();
+    sdkBridge.onEvenHubEvent.mockReturnValue(vi.fn());
+    sdkBridge.onLaunchSource.mockReturnValue(unsubscribeLaunch);
+    vi.mocked(waitForEvenAppBridge).mockResolvedValue(sdkBridge as unknown as Awaited<ReturnType<typeof waitForEvenAppBridge>>);
+
+    const bridge = new EvenHubBridge();
+    const launchHandler = vi.fn();
+    bridge.onLaunchSource(launchHandler);
+
+    await bridge.connect();
+
+    expect(sdkBridge.onLaunchSource).toHaveBeenCalledTimes(1);
+    const launchCallback = sdkBridge.onLaunchSource.mock.calls[0]?.[0];
+    expect(launchCallback).toBeTypeOf("function");
+
+    launchCallback?.("glassesMenu");
+    expect(launchHandler).toHaveBeenCalledWith("glassesMenu");
+
+    bridge.disconnect();
+    expect(unsubscribeLaunch).toHaveBeenCalledTimes(1);
   });
 
   it("treats enum startup success as created and avoids duplicate startup calls", async () => {
@@ -133,5 +175,52 @@ describe("EvenHubBridge", () => {
     await bridge.createStartup(basePayload);
 
     expect(sdkBridge.createStartUpPageContainer).toHaveBeenCalledTimes(2);
+  });
+
+  it("updates image raw data and normalizes success result", async () => {
+    const sdkBridge = createMockSdkBridge();
+    sdkBridge.updateImageRawData.mockResolvedValue("success");
+    vi.mocked(waitForEvenAppBridge).mockResolvedValue(sdkBridge as unknown as Awaited<ReturnType<typeof waitForEvenAppBridge>>);
+
+    const bridge = new EvenHubBridge();
+    await bridge.connect();
+
+    await expect(
+      bridge.updateImage({ containerID: 10, containerName: "img-1", imageData: [0, 1, 2] })
+    ).resolves.toBe(true);
+    expect(sdkBridge.updateImageRawData).toHaveBeenCalledWith({
+      containerID: 10,
+      containerName: "img-1",
+      imageData: [0, 1, 2],
+    });
+  });
+
+  it("returns false for failed image raw data update", async () => {
+    const sdkBridge = createMockSdkBridge();
+    sdkBridge.updateImageRawData.mockResolvedValue("sendFailed");
+    vi.mocked(waitForEvenAppBridge).mockResolvedValue(sdkBridge as unknown as Awaited<ReturnType<typeof waitForEvenAppBridge>>);
+
+    const bridge = new EvenHubBridge();
+    await bridge.connect();
+
+    await expect(
+      bridge.updateImage({ containerID: 10, containerName: "img-1", imageData: [0] })
+    ).resolves.toBe(false);
+  });
+
+  it("delegates audio and imu control through the sdk bridge", async () => {
+    const sdkBridge = createMockSdkBridge();
+    sdkBridge.audioControl.mockResolvedValue(true);
+    sdkBridge.imuControl.mockResolvedValue(true);
+    vi.mocked(waitForEvenAppBridge).mockResolvedValue(sdkBridge as unknown as Awaited<ReturnType<typeof waitForEvenAppBridge>>);
+
+    const bridge = new EvenHubBridge();
+    await bridge.connect();
+
+    await expect(bridge.audioControl(true)).resolves.toBe(true);
+    await expect(bridge.imuControl(true, 500 as never)).resolves.toBe(true);
+
+    expect(sdkBridge.audioControl).toHaveBeenCalledWith(true);
+    expect(sdkBridge.imuControl).toHaveBeenCalledWith(true, 500);
   });
 });

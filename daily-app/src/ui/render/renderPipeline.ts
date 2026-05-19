@@ -2,7 +2,7 @@ import type { Logger } from "../../utils/logger";
 import type { EvenHubBridge } from "../../bridge/evenHubBridge";
 import { buildLayout } from "../layout/layoutBuilder";
 
-export type ContainerType = "text" | "list";
+export type ContainerType = "text" | "list" | "image";
 
 export interface TextViewModel {
   type: "text";
@@ -20,10 +20,20 @@ export interface ListViewModel {
   eventCapture: 0 | 1;
 }
 
+export interface ImageViewModel {
+  type: "image";
+  id: string;
+  imageData: number[] | string | Uint8Array | ArrayBuffer;
+  xPosition?: number;
+  yPosition?: number;
+  width?: number;
+  height?: number;
+}
+
 export interface ViewModel {
   title: string;
   layoutMode?: "stacked" | "two-column" | "list-footer";
-  containers: Array<TextViewModel | ListViewModel>;
+  containers: Array<TextViewModel | ListViewModel | ImageViewModel>;
 }
 
 export class RenderPipeline {
@@ -33,14 +43,19 @@ export class RenderPipeline {
 
   async render(viewModel: ViewModel): Promise<void> {
     const layout = buildLayout(viewModel);
+    const { imageUpdates, ...containerLayout } = layout;
     const hasTextOnly =
-      layout.containerTotalNum === 1 &&
-      (layout.textObject?.length ?? 0) === 1 &&
-      (layout.listObject?.length ?? 0) === 0;
+      containerLayout.containerTotalNum === 1 &&
+      (containerLayout.textObject?.length ?? 0) === 1 &&
+      (containerLayout.listObject?.length ?? 0) === 0 &&
+      (containerLayout.imageObject?.length ?? 0) === 0;
 
     if (!this.created) {
-      this.created = await this.bridge.createStartup(layout);
+      this.created = await this.bridge.createStartup(containerLayout);
       this.logger.info(`Startup UI created: ${this.created}`);
+      if (this.created) {
+        await this.pushImageUpdates(imageUpdates);
+      }
       this.lastRenderWasTextOnly = hasTextOnly;
       return;
     }
@@ -66,11 +81,22 @@ export class RenderPipeline {
       }
     }
 
-    const rebuilt = await this.bridge.rebuild(layout);
+    const rebuilt = await this.bridge.rebuild(containerLayout);
     if (!rebuilt) {
       this.logger.info("rebuildPageContainer failed");
+    } else {
+      await this.pushImageUpdates(imageUpdates);
     }
 
     this.lastRenderWasTextOnly = hasTextOnly;
+  }
+
+  private async pushImageUpdates(imageUpdates: ReturnType<typeof buildLayout>["imageUpdates"]): Promise<void> {
+    for (const imageUpdate of imageUpdates ?? []) {
+      const updated = await this.bridge.updateImage(imageUpdate);
+      if (!updated) {
+        this.logger.info(`updateImageRawData failed for container ${imageUpdate.containerName ?? imageUpdate.containerID}`);
+      }
+    }
   }
 }

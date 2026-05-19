@@ -43,7 +43,7 @@ describe("buildLayout", () => {
       width: 288,
       height: 288,
       borderWidth: 1,
-      borderRdaius: 4,
+      borderRadius: 4,
       paddingLength: 6,
       isEventCapture: 0,
     });
@@ -221,5 +221,68 @@ describe("buildLayout", () => {
     expect(label).toBeDefined();
     expect(label?.length).toBe(64);
     expect(label?.endsWith("...")).toBe(true);
+  });
+
+  it("creates image containers and sequential image update payloads", () => {
+    const imageData = [0, 1, 2, 3];
+    const viewModel: ViewModel = {
+      title: "Image",
+      containers: [
+        {
+          type: "image",
+          id: "image-1",
+          imageData,
+          xPosition: 12,
+          yPosition: 24,
+          width: 260,
+          height: 120,
+        },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.containerTotalNum).toBe(1);
+    expect(layout.imageObject?.[0]).toMatchObject({
+      xPosition: 12,
+      yPosition: 24,
+      width: 260,
+      height: 120,
+      containerID: 10,
+      containerName: "img-1",
+    });
+    expect(layout.imageUpdates).toEqual([
+      {
+        containerID: 10,
+        containerName: "img-1",
+        imageData,
+      },
+    ]);
+  });
+
+  it("caps image containers at the sdk maximum and clamps dimensions", () => {
+    const viewModel: ViewModel = {
+      title: "Images",
+      containers: Array.from({ length: 5 }, (_, index) => ({
+        type: "image" as const,
+        id: `image-${index}`,
+        imageData: [index],
+        xPosition: -10,
+        yPosition: 400,
+        width: 500,
+        height: 500,
+      })),
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.imageObject).toHaveLength(4);
+    expect(layout.imageUpdates).toHaveLength(4);
+    expect(layout.imageObject?.[0]).toMatchObject({
+      xPosition: 0,
+      yPosition: 288,
+      width: 288,
+      height: 144,
+    });
   });
 });

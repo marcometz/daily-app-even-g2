@@ -6,6 +6,7 @@ const typeMap: Record<number, InputEvent["type"]> = {
   1: "Up",
   2: "Down",
   3: "DoubleClick",
+  7: "SystemExit",
 };
 
 export function mapEvenHubEvent(
@@ -72,9 +73,18 @@ function mapKnownEventType(
     if (mapped) {
       return mapped;
     }
+
+    if (isImuReportEvent(normalized, osEnum)) {
+      return null;
+    }
   }
 
   return null;
+}
+
+function isImuReportEvent(normalized: number, osEnum: OsEventTypeResolver): boolean {
+  const imuValue = "IMU_DATA_REPORT" in osEnum ? osEnum.fromJson("IMU_DATA_REPORT") : undefined;
+  return imuValue !== undefined && normalized === imuValue;
 }
 
 function normalizeEventTypeValue(rawType: unknown): unknown {

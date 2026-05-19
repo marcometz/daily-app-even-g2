@@ -12,6 +12,7 @@ DEV_PATH="${DEV_PATH:-/}"
 OPEN_QR_EXTERNAL="${OPEN_QR_EXTERNAL:-0}"
 START_SIMULATOR="${START_SIMULATOR:-1}"
 SIMULATOR_CMD="${SIMULATOR_CMD:-evenhub-simulator}"
+SIMULATOR_AUTOMATION_PORT="${SIMULATOR_AUTOMATION_PORT:-9898}"
 WAIT_SECONDS="${WAIT_SECONDS:-45}"
 
 DEV_PID=""
@@ -150,8 +151,14 @@ fi
 
 if [[ "$START_SIMULATOR" == "1" ]]; then
   if command -v "$SIMULATOR_CMD" >/dev/null 2>&1; then
-    print_info "Starting simulator: $SIMULATOR_CMD $DEV_URL"
-    "$SIMULATOR_CMD" "$DEV_URL" >/tmp/evenhub-simulator.log 2>&1 &
+    simulator_args=("$DEV_URL")
+    if [[ -n "$SIMULATOR_AUTOMATION_PORT" ]]; then
+      simulator_args+=(--automation-port "$SIMULATOR_AUTOMATION_PORT")
+      print_info "Simulator automation API: http://127.0.0.1:$SIMULATOR_AUTOMATION_PORT"
+    fi
+
+    print_info "Starting simulator: $SIMULATOR_CMD ${simulator_args[*]}"
+    "$SIMULATOR_CMD" "${simulator_args[@]}" >/tmp/evenhub-simulator.log 2>&1 &
     SIMULATOR_PID=$!
   else
     print_error "Simulator command not found: $SIMULATOR_CMD"

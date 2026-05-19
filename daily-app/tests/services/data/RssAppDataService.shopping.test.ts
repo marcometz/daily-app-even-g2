@@ -37,7 +37,7 @@ describe("RssAppDataService shopping list", () => {
       { id: "milk", title: "Milch", done: false, position: 0 },
       { id: "bread", title: "Brot", done: false, position: 1 },
     ];
-    const saveEditableItems = vi.fn(async () => {});
+    const saveEditableItems = vi.fn(async (_items: EditableShoppingItem[]) => {});
     let persistedItems = initialItems.map((item) => ({ ...item }));
     const loadEditableItems = vi.fn(async () => persistedItems);
     const shoppingConfigService = {
@@ -53,7 +53,7 @@ describe("RssAppDataService shopping list", () => {
     await service.toggleShoppingItem("milk");
 
     expect(saveEditableItems).toHaveBeenCalledTimes(1);
-    const persisted = saveEditableItems.mock.calls[0]?.[0] as EditableShoppingItem[];
+    const persisted = saveEditableItems.mock.calls[0]?.[0] ?? [];
     expect(persisted).toEqual([
       { id: "milk", title: "Milch", done: true, position: 0 },
       { id: "bread", title: "Brot", done: false, position: 1 },

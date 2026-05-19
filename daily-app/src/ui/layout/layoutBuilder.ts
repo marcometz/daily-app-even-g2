@@ -1,20 +1,33 @@
-import type { TextContainerPayload, ListContainerPayload } from "../../bridge/evenHubTypes";
-import type { ViewModel, TextViewModel, ListViewModel } from "../render/renderPipeline";
+import type {
+  ImageContainerPayload,
+  ImageUpdatePayload,
+  TextContainerPayload,
+  ListContainerPayload,
+} from "../../bridge/evenHubTypes";
+import type { ViewModel, TextViewModel, ListViewModel, ImageViewModel } from "../render/renderPipeline";
+import { clamp } from "../../utils/clamp";
 import { CONTAINER_IDS } from "./containerIds";
 
 const MAX_LIST_ITEM_COUNT = 20;
 const MAX_LIST_ITEM_NAME_LENGTH = 64;
+const MAX_TEXT_CONTAINER_COUNT = 8;
+const MAX_IMAGE_CONTAINER_COUNT = 4;
+const MAX_TOTAL_CONTAINER_COUNT = 12;
 const EMPTY_LIST_PLACEHOLDER = "Keine Eintraege verfuegbar.";
 
 export interface LayoutPayload {
   textObject?: TextContainerPayload[];
   listObject?: ListContainerPayload[];
+  imageObject?: ImageContainerPayload[];
+  imageUpdates?: ImageUpdatePayload[];
   containerTotalNum: number;
 }
 
 export function buildLayout(viewModel: ViewModel): LayoutPayload {
   const textContainers: TextContainerPayload[] = [];
   const listContainers: ListContainerPayload[] = [];
+  const imageContainers: ImageContainerPayload[] = [];
+  const imageUpdates: ImageUpdatePayload[] = [];
 
   const hasText = viewModel.containers.some((container) => container.type === "text");
   const hasList = viewModel.containers.some((container) => container.type === "list");
@@ -44,7 +57,7 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
         width: textWidth,
         height: textHeight,
         borderWidth: borderedText ? 1 : 0,
-        borderRdaius: borderedText ? 4 : 0,
+        borderRadius: borderedText ? 4 : 0,
         paddingLength: borderedText ? 6 : 0,
         containerID: CONTAINER_IDS.text.id,
         containerName: CONTAINER_IDS.text.name,
@@ -78,14 +91,44 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
         eventCaptureAssigned = true;
       }
     }
+
+    if (container.type === "image" && imageContainers.length < MAX_IMAGE_CONTAINER_COUNT) {
+      const image = container as ImageViewModel;
+      const imageIndex = imageContainers.length;
+      const containerID = CONTAINER_IDS.imageBase.id + imageIndex;
+      const containerName = `${CONTAINER_IDS.imageBase.name}-${imageIndex + 1}`;
+      imageContainers.push({
+        xPosition: clamp(image.xPosition ?? 0, 0, 576),
+        yPosition: clamp(image.yPosition ?? 0, 0, 288),
+        width: clamp(image.width ?? 200, 20, 288),
+        height: clamp(image.height ?? 100, 20, 144),
+        containerID,
+        containerName,
+      });
+      imageUpdates.push({
+        containerID,
+        containerName,
+        imageData: image.imageData,
+      });
+    }
   }
 
-  const total = textContainers.length + listContainers.length;
+  const limitedTextContainers = textContainers.slice(0, MAX_TEXT_CONTAINER_COUNT);
+  const limitedListContainers = listContainers.slice(0, Math.max(0, MAX_TOTAL_CONTAINER_COUNT - limitedTextContainers.length));
+  const remainingContainerSlots = Math.max(
+    0,
+    MAX_TOTAL_CONTAINER_COUNT - limitedTextContainers.length - limitedListContainers.length
+  );
+  const limitedImageContainers = imageContainers.slice(0, Math.min(MAX_IMAGE_CONTAINER_COUNT, remainingContainerSlots));
+  const limitedImageUpdates = imageUpdates.slice(0, limitedImageContainers.length);
+  const total = limitedTextContainers.length + limitedListContainers.length + limitedImageContainers.length;
 
   return {
     containerTotalNum: total,
-    textObject: textContainers.length ? textContainers : undefined,
-    listObject: listContainers.length ? listContainers : undefined,
+    textObject: limitedTextContainers.length ? limitedTextContainers : undefined,
+    listObject: limitedListContainers.length ? limitedListContainers : undefined,
+    imageObject: limitedImageContainers.length ? limitedImageContainers : undefined,
+    imageUpdates: limitedImageUpdates.length ? limitedImageUpdates : undefined,
   };
 }
 

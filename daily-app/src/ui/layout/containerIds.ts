@@ -7,4 +7,8 @@ export const CONTAINER_IDS = {
     id: 2,
     name: "list-1",
   },
+  imageBase: {
+    id: 10,
+    name: "img",
+  },
 } as const;
