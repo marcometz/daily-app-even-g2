@@ -90,4 +90,195 @@ describe("RenderPipeline", () => {
       imageData: [2],
     });
   });
+
+  it("updates all matching text-only containers without full rebuild", async () => {
+    const bridge = createBridgeStub();
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const first: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "body", content: "Page 1", eventCapture: 1 },
+        { type: "text", id: "pager", content: "1/2", eventCapture: 0 },
+      ],
+    };
+    const second: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "body", content: "Page 2", eventCapture: 1 },
+        { type: "text", id: "pager", content: "2/2", eventCapture: 0 },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.rebuild).not.toHaveBeenCalled();
+    expect(bridge.updateText).toHaveBeenNthCalledWith(1, {
+      containerID: 1,
+      containerName: "text-1",
+      contentOffset: 0,
+      contentLength: 6,
+      content: "Page 2",
+    });
+    expect(bridge.updateText).toHaveBeenNthCalledWith(2, {
+      containerID: 3,
+      containerName: "text-2",
+      contentOffset: 0,
+      contentLength: 3,
+      content: "2/2",
+    });
+  });
+
+  it("updates dashboard info text without rebuilding the list layout", async () => {
+    const bridge = createBridgeStub();
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const nextDashboardInfo = "Shopping List\n\nShopping-Beschreibung";
+    const first: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "two-column",
+      containers: [
+        {
+          type: "list",
+          id: "dashboard-list",
+          title: "Dashboard",
+          items: ["RSS-Feeds", "Shopping List"],
+          selectedIndex: 0,
+          eventCapture: 1,
+        },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "RSS-Feeds\n\nRSS-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+    const second: ViewModel = {
+      ...first,
+      containers: [
+        first.containers[0]!,
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: nextDashboardInfo,
+          eventCapture: 0,
+        },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.rebuild).not.toHaveBeenCalled();
+    expect(bridge.updateText).toHaveBeenCalledTimes(1);
+    expect(bridge.updateText).toHaveBeenCalledWith({
+      containerID: 1,
+      containerName: "text-1",
+      contentOffset: 0,
+      contentLength: nextDashboardInfo.length,
+      content: nextDashboardInfo,
+    });
+  });
+
+  it("falls back to rebuild when mixed-layout text update fails", async () => {
+    const bridge = createBridgeStub();
+    bridge.updateText.mockResolvedValue(false);
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const first: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "two-column",
+      containers: [
+        {
+          type: "list",
+          id: "dashboard-list",
+          title: "Dashboard",
+          items: ["RSS-Feeds", "Shopping List"],
+          selectedIndex: 0,
+          eventCapture: 1,
+        },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "RSS-Feeds\n\nRSS-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+    const second: ViewModel = {
+      ...first,
+      containers: [
+        first.containers[0]!,
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "Shopping List\n\nShopping-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.updateText).toHaveBeenCalledTimes(1);
+    expect(bridge.rebuild).toHaveBeenCalledTimes(1);
+    expect(logger.info).toHaveBeenCalledWith("textContainerUpgrade failed, fallback to rebuild");
+  });
+
+  it("rebuilds when the list structure changes in a mixed layout", async () => {
+    const bridge = createBridgeStub();
+    const logger = createLoggerStub();
+    const pipeline = new RenderPipeline(bridge as unknown as EvenHubBridge, logger);
+    const first: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "two-column",
+      containers: [
+        {
+          type: "list",
+          id: "dashboard-list",
+          title: "Dashboard",
+          items: ["RSS-Feeds", "Shopping List"],
+          selectedIndex: 0,
+          eventCapture: 1,
+        },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "RSS-Feeds\n\nRSS-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+    const second: ViewModel = {
+      title: "Dashboard",
+      layoutMode: "two-column",
+      containers: [
+        {
+          type: "list",
+          id: "dashboard-list",
+          title: "Dashboard",
+          items: ["RSS-Feeds", "Shopping List", "Neu"],
+          selectedIndex: 0,
+          eventCapture: 1,
+        },
+        {
+          type: "text",
+          id: "dashboard-info",
+          content: "RSS-Feeds\n\nRSS-Beschreibung",
+          eventCapture: 0,
+        },
+      ],
+    };
+
+    await pipeline.render(first);
+    await pipeline.render(second);
+
+    expect(bridge.updateText).not.toHaveBeenCalled();
+    expect(bridge.rebuild).toHaveBeenCalledTimes(1);
+  });
 });

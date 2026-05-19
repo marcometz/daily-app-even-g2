@@ -1,7 +1,10 @@
+import { measureTextWrap } from "@evenrealities/pretext";
 import type { RssFeedConfig } from "./rssConfig";
 
 const DEFAULT_SNIPPET_LENGTH = 72;
 const DEFAULT_DETAIL_PAGE_LENGTH = 480;
+const DEFAULT_PAGE_WIDTH_PX = 568;
+const DEFAULT_PAGE_HEIGHT_PX = 162;
 
 export interface ParsedRssItem {
   id: string;
@@ -81,32 +84,59 @@ export function paginateText(value: string, maxPageLength = DEFAULT_DETAIL_PAGE_
     return ["Keine Beschreibung verfuegbar."];
   }
 
-  if (normalized.length <= maxPageLength) {
+  if (fitsPage(normalized, maxPageLength)) {
     return [normalized];
   }
 
   const pages: string[] = [];
-  let cursor = 0;
+  const words = normalized.split(" ");
+  let current = "";
 
-  while (cursor < normalized.length) {
-    const remaining = normalized.length - cursor;
-    if (remaining <= maxPageLength) {
-      pages.push(normalized.slice(cursor).trim());
-      break;
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (fitsPage(candidate, maxPageLength)) {
+      current = candidate;
+      continue;
     }
 
-    const window = normalized.slice(cursor, cursor + maxPageLength + 1);
-    const splitAt = window.lastIndexOf(" ");
-    const take = splitAt > 0 ? splitAt : maxPageLength;
-    pages.push(window.slice(0, take).trim());
-    cursor += take;
-
-    while (normalized[cursor] === " ") {
-      cursor += 1;
+    if (current) {
+      pages.push(current);
+      current = "";
     }
+
+    if (fitsPage(word, maxPageLength)) {
+      current = word;
+      continue;
+    }
+
+    const chunks = splitLongToken(word, maxPageLength);
+    pages.push(...chunks.slice(0, -1));
+    current = chunks.at(-1) ?? "";
+  }
+
+  if (current) {
+    pages.push(current);
   }
 
   return pages.filter((page) => page.length > 0);
+}
+
+function fitsPage(text: string, maxPageLength: number): boolean {
+  return (
+    text.length <= maxPageLength &&
+    measureTextWrap(text, DEFAULT_PAGE_WIDTH_PX).height <= DEFAULT_PAGE_HEIGHT_PX
+  );
+}
+
+function splitLongToken(token: string, maxPageLength: number): string[] {
+  const chunks: string[] = [];
+  let cursor = 0;
+  const chunkLength = Math.max(1, maxPageLength);
+  while (cursor < token.length) {
+    chunks.push(token.slice(cursor, cursor + chunkLength));
+    cursor += chunkLength;
+  }
+  return chunks;
 }
 
 function getText(item: Element, names: string[]): string {

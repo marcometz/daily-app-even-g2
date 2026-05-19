@@ -161,6 +161,7 @@ function createDataService(list: ListData) {
     refreshList,
     getList,
     toggleShoppingItem: vi.fn(async (_itemId: string) => {}),
+    addShoppingItem: vi.fn(async (_title: string) => {}),
     getDetail(_itemId: string): DetailData {
       return {
         id: "unused",

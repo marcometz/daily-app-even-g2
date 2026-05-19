@@ -7,6 +7,7 @@ import {
 import { createRssFeedListScreen } from "../screens/rss/RssFeedListScreen";
 import { createRssFeedDetailScreen } from "../screens/rss/RssFeedDetailScreen";
 import { createShoppingListScreen } from "../screens/shopping/ShoppingListScreen";
+import type { TodoSpeechService } from "../services/speech/TodoSpeechService";
 import type { Logger } from "../utils/logger";
 
 export interface Router {
@@ -15,7 +16,13 @@ export interface Router {
   back(): void;
 }
 
-export function createRouter(stack: ScreenStack, dataService: DataService, logger: Logger): Router {
+export function createRouter(
+  stack: ScreenStack,
+  dataService: DataService,
+  logger: Logger,
+  onRootBack?: () => void,
+  todoSpeechService?: TodoSpeechService
+): Router {
   const requestRender = () => stack.render();
 
   const router: Router = {
@@ -27,7 +34,14 @@ export function createRouter(stack: ScreenStack, dataService: DataService, logge
       }
 
       if (listId === SHOPPING_LIST_ID) {
-        const screen = createShoppingListScreen(listId, dataService, logger, router, requestRender);
+        const screen = createShoppingListScreen(
+          listId,
+          dataService,
+          logger,
+          router,
+          requestRender,
+          todoSpeechService
+        );
         stack.push(screen);
         return;
       }
@@ -40,7 +54,11 @@ export function createRouter(stack: ScreenStack, dataService: DataService, logge
       stack.push(screen);
     },
     back() {
-      stack.pop();
+      const didPop = stack.pop();
+      if (!didPop) {
+        logger.info("Back requested at root");
+        onRootBack?.();
+      }
     },
   };
 

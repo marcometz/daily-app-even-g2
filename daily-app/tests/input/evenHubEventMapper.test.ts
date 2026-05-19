@@ -78,6 +78,26 @@ describe("mapEvenHubEvent", () => {
     expect(mapped).toEqual({ type: "Click", raw: event });
   });
 
+  it("maps sys event without eventType to Click for omitted zero-value protobuf click", () => {
+    const event = {
+      sysEvent: {},
+    } as unknown as EvenHubEventPayload;
+
+    const mapped = mapEvenHubEvent(event, mockOsEventTypeList);
+
+    expect(mapped).toEqual({ type: "Click", raw: event });
+  });
+
+  it("does not treat sys event without eventType but with IMU payload as Click", () => {
+    const event = {
+      sysEvent: { imuData: { x: 1, y: 2, z: 3 } },
+    } as unknown as EvenHubEventPayload;
+
+    const mapped = mapEvenHubEvent(event, mockOsEventTypeList);
+
+    expect(mapped).toBeNull();
+  });
+
   it("maps unknown list event type with selection payload to SelectionChange", () => {
     const event = {
       listEvent: { eventType: "ITEM_HOVER_EVENT", currentSelectItemName: "Shopping List" },

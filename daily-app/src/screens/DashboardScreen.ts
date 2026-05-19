@@ -86,6 +86,11 @@ export function createDashboardScreen(
           router.toList(targetListId);
         }
       }
+
+      if (event.type === "DoubleClick") {
+        logger.info("Dashboard double click -> root back");
+        router.back();
+      }
     },
     getViewModel(): ViewModel {
       const dashboard = dataService.getDashboard();

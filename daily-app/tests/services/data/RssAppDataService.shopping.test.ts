@@ -7,6 +7,24 @@ import {
 import type { EditableShoppingItem } from "../../../src/services/data/shoppingConfig";
 
 describe("RssAppDataService shopping list", () => {
+  it("adds EvenHub runtime status to dashboard data", () => {
+    const service = new RssAppDataService(createRssConfigServiceStub() as any, {
+      loadEditableItems: vi.fn(async () => []),
+      saveEditableItems: vi.fn(async () => {}),
+    } as any);
+
+    service.setLaunchSource("glassesMenu");
+    service.setUserName("Ada");
+    service.setDeviceStatus({
+      sn: "G2-1",
+      connectType: "connected",
+      batteryLevel: 84,
+      isWearing: true,
+    });
+
+    expect(service.getDashboard().statusLine).toBe("G2: connected 84% getragen | Start: glassesMenu | User: Ada");
+  });
+
   it("loads shopping list entries from shopping config service", async () => {
     const shoppingItems: EditableShoppingItem[] = [
       { id: "eggs", title: "Eier", done: false, position: 1 },
@@ -119,6 +137,31 @@ describe("RssAppDataService shopping list", () => {
     expect(list.items).toEqual([
       { id: "done-a", label: "[x] A" },
       { id: "done-b", label: "[x] B" },
+    ]);
+  });
+
+  it("adds shopping item through config service and reloads list", async () => {
+    let items = [{ id: "milk", title: "Milch", done: false, position: 0 }];
+    const shoppingConfigService = {
+      loadEditableItems: vi.fn(async () => items),
+      saveEditableItems: vi.fn(async () => {}),
+      addEditableItem: vi.fn(async (title: string) => {
+        items = [
+          ...items,
+          { id: "bread", title, done: false, position: 1 },
+        ];
+        return items[1]!;
+      }),
+    };
+    const service = new RssAppDataService(createRssConfigServiceStub() as any, shoppingConfigService as any);
+    await service.refreshList(SHOPPING_LIST_ID);
+
+    await service.addShoppingItem("Brot");
+
+    expect(shoppingConfigService.addEditableItem).toHaveBeenCalledWith("Brot");
+    expect(service.getList(SHOPPING_LIST_ID).items).toEqual([
+      { id: "milk", label: "[ ] Milch" },
+      { id: "bread", label: "[ ] Brot" },
     ]);
   });
 });

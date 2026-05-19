@@ -101,6 +101,38 @@ describe("ShoppingConfigService", () => {
     ]);
   });
 
+  it("adds a trimmed open item after existing positions", async () => {
+    const storage = new MemoryStorageService();
+    storage.seed(
+      "shopping_config_v1",
+      JSON.stringify({
+        version: 1,
+        items: [{ id: "milk", title: "Milch", done: false, position: 4 }],
+      })
+    );
+    const service = new ShoppingConfigService(storage);
+
+    const item = await service.addEditableItem("  Brot kaufen  ");
+
+    expect(item).toMatchObject({
+      title: "Brot kaufen",
+      done: false,
+      position: 5,
+    });
+    expect(item.id).toMatch(/^brot-kaufen-/);
+    await expect(service.loadEditableItems()).resolves.toEqual([
+      { id: "milk", title: "Milch", done: false, position: 4 },
+      item,
+    ]);
+  });
+
+  it("rejects empty added items", async () => {
+    const storage = new MemoryStorageService();
+    const service = new ShoppingConfigService(storage);
+
+    await expect(service.addEditableItem("   ")).rejects.toThrow("Todo-Titel darf nicht leer sein.");
+  });
+
   it("throws when storage refuses to persist data", async () => {
     const storage = new MemoryStorageService();
     storage.setFailSet(true);

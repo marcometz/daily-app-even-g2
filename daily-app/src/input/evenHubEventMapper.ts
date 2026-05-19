@@ -23,6 +23,11 @@ export function mapEvenHubEvent(
   }
 
   if (listType === undefined && textType === undefined && sysType === undefined && jsonType === undefined) {
+    // Current host protobuf payloads can omit zero-valued CLICK_EVENT on sysEvent.
+    if (event.sysEvent && !hasNonClickSysPayload(event.sysEvent)) {
+      return { type: "Click", raw: event };
+    }
+
     // Legacy host behavior: list/text events without explicit type are treated as Click.
     if (event.listEvent || event.textEvent) {
       return { type: "Click", raw: event };
@@ -38,6 +43,21 @@ export function mapEvenHubEvent(
     return { type: "SelectionChange", raw: event };
   }
   return null;
+}
+
+function hasNonClickSysPayload(part: unknown): boolean {
+  const record = normalizeRecord(part);
+  if (!record) {
+    return false;
+  }
+
+  return (
+    "imuData" in record ||
+    "imu_data" in record ||
+    "systemExitReasonCode" in record ||
+    "system_exit_reason_code" in record ||
+    "SystemExit_ReasonCode" in record
+  );
 }
 
 function readEventTypeFromJsonData(event: EvenHubEventPayload): unknown {

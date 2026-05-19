@@ -1,0 +1,21 @@
+{
+  "package_id": "com.metz.dailyapp",
+  "edition": "202601",
+  "name": "Daily App",
+  "version": "0.1.0",
+  "min_app_version": "2.0.0",
+  "min_sdk_version": "0.0.10",
+  "entrypoint": "index.html",
+  "permissions": [
+    {
+      "name": "network",
+      "desc": "Load configured RSS feed XML.",
+      "whitelist": ["https://www.tagesschau.de"]
+    },
+    {
+      "name": "g2-microphone",
+      "desc": "Capture audio from the glasses mic for voice todo input."
+    }
+  ],
+  "supported_languages": ["de", "en"]
+}

@@ -2,11 +2,13 @@ import type { DetailData } from "../../services/data/DataService";
 import type { TextViewModel, ViewModel } from "../render/renderPipeline";
 
 const MAX_DETAIL_CONTENT_LENGTH = 980;
+const MAX_DETAIL_TITLE_LENGTH = 180;
+const MAX_DETAIL_BODY_LENGTH = 900;
 
-export function buildTextModel(text: string, eventCapture: 0 | 1): TextViewModel {
+export function buildTextModel(text: string, eventCapture: 0 | 1, id = "text-1"): TextViewModel {
   return {
     type: "text",
-    id: "text-1",
+    id,
     content: text,
     eventCapture,
   };
@@ -25,22 +27,22 @@ export function buildDetailViewModel(
     ? `Quelle: ${detail.source} | ${detail.pubDateText}`
     : `Quelle: ${detail.source}`;
 
-  const content = truncateText(
-    [
-      detail.title,
-      "",
-      activePage,
-      "",
-      sourceLine,
-      `Seite: ${pageIndex + 1}/${pageCount}`,
-      `AutoScroll: ${options.autoScrollEnabled ? "AN" : "AUS"}`,
-      "Click: AutoScroll",
-    ].join("\n")
-  );
+  const titleContent = truncateText(detail.title, MAX_DETAIL_TITLE_LENGTH);
+  const bodyContent = truncateText(activePage, MAX_DETAIL_BODY_LENGTH);
+  const pagerContent = [
+    `${pageIndex + 1}/${pageCount}`,
+    options.autoScrollEnabled ? "Auto AN" : "Auto AUS",
+    sourceLine,
+  ].join(" | ");
 
   return {
     title: "RSS-Detail",
-    containers: [buildTextModel(content, eventCapture)],
+    layoutMode: "text-pager",
+    containers: [
+      buildTextModel(titleContent, 0, "title"),
+      buildTextModel(bodyContent, eventCapture, "body"),
+      buildTextModel(pagerContent, 0, "pager"),
+    ],
   };
 }
 
@@ -54,11 +56,11 @@ function clampIndex(index: number, count: number): number {
   return index;
 }
 
-function truncateText(text: string): string {
-  if (text.length <= MAX_DETAIL_CONTENT_LENGTH) {
+function truncateText(text: string, maxLength = MAX_DETAIL_CONTENT_LENGTH): string {
+  if (text.length <= maxLength) {
     return text;
   }
 
   const suffix = "\n\n[gekuerzt]";
-  return `${text.slice(0, MAX_DETAIL_CONTENT_LENGTH - suffix.length)}${suffix}`;
+  return `${text.slice(0, maxLength - suffix.length)}${suffix}`;
 }

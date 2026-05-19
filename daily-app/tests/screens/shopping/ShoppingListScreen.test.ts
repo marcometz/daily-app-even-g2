@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createShoppingListScreen } from "../../../src/screens/shopping/ShoppingListScreen";
 import type { DataService, DashboardData, DetailData, ListData } from "../../../src/services/data/DataService";
 import { SHOPPING_DIVIDER_ITEM_ID, SHOPPING_LIST_ID } from "../../../src/services/data/RssAppDataService";
+import type { TodoSpeechService, TodoSpeechSnapshot } from "../../../src/services/speech/TodoSpeechService";
 import type { ViewModel } from "../../../src/ui/render/renderPipeline";
 
 describe("ShoppingListScreen", () => {
@@ -550,11 +551,114 @@ describe("ShoppingListScreen", () => {
 
     expect(dataService.toggleShoppingItem).toHaveBeenCalledWith("milk");
   });
+
+  it("renders add todo action as first row when speech input is available", async () => {
+    const dataService = createDataService({
+      id: SHOPPING_LIST_ID,
+      title: "Shopping List",
+      items: [{ id: "milk", label: "[ ] Milch" }],
+    });
+    const screen = createShoppingListScreen(
+      SHOPPING_LIST_ID,
+      dataService,
+      createLogger(),
+      createRouter(),
+      vi.fn(),
+      createTodoSpeechService()
+    );
+    screen.onEnter();
+    await flushAsync();
+
+    const listContainer = screen.getViewModel().containers[0];
+    expect(listContainer?.type).toBe("list");
+    if (listContainer?.type === "list") {
+      expect(listContainer.items[0]).toBe("+ Neues Todo sprechen");
+      expect(listContainer.items[1]).toBe("[ ] Milch");
+    }
+  });
+
+  it("starts speech input from first row and saves recognized todo", async () => {
+    const dataService = createDataService({
+      id: SHOPPING_LIST_ID,
+      title: "Shopping List",
+      items: [{ id: "milk", label: "[ ] Milch" }],
+    });
+    let finalTextHandler: (text: string) => void = vi.fn();
+    const speechService = createTodoSpeechService({
+      async start(options) {
+        finalTextHandler = options.onFinalText;
+        options.onSnapshot({
+          status: "listening",
+          transcript: "",
+          message: "Sprich das neue Todo ein.",
+        });
+        return { stop: vi.fn(async () => {}) };
+      },
+    });
+    const screen = createShoppingListScreen(
+      SHOPPING_LIST_ID,
+      dataService,
+      createLogger(),
+      createRouter(),
+      vi.fn(),
+      speechService
+    );
+    screen.onEnter();
+    await flushAsync();
+
+    screen.onInput({ type: "Click" });
+    await flushAsync();
+    expect(screen.getViewModel().containers[0]?.type).toBe("text");
+
+    finalTextHandler("  Hafermilch kaufen  ");
+    await flushAsync();
+
+    expect(dataService.addShoppingItem).toHaveBeenCalledWith("Hafermilch kaufen");
+    expect(screen.getViewModel().containers[0]?.type).toBe("list");
+  });
+
+  it("shows speech startup errors and returns to list on click", async () => {
+    const dataService = createDataService({
+      id: SHOPPING_LIST_ID,
+      title: "Shopping List",
+      items: [{ id: "milk", label: "[ ] Milch" }],
+    });
+    const speechService = createTodoSpeechService({
+      async start() {
+        throw new Error("Spracherkennung nicht verfuegbar");
+      },
+    });
+    const screen = createShoppingListScreen(
+      SHOPPING_LIST_ID,
+      dataService,
+      createLogger(),
+      createRouter(),
+      vi.fn(),
+      speechService
+    );
+    screen.onEnter();
+    await flushAsync();
+
+    screen.onInput({ type: "Click" });
+    await flushAsync();
+
+    const errorView = screen.getViewModel();
+    expect(errorView.containers[0]?.type).toBe("text");
+    if (errorView.containers[0]?.type === "text") {
+      expect(errorView.containers[0].content).toContain("Spracherkennung nicht verfuegbar");
+    }
+
+    screen.onInput({ type: "Click" });
+    await flushAsync();
+
+    expect(screen.getViewModel().containers[0]?.type).toBe("list");
+  });
 });
 
 function createDataService(list: ListData) {
   const getList = vi.fn(() => list);
   const toggleShoppingItem = vi.fn(async (_itemId: string) => {});
+  const addShoppingItem = vi.fn(async (_title: string) => {});
   const refreshList = vi.fn(async (_listId: string) => {});
 
   const dataService: DataService = {
@@ -564,6 +668,7 @@ function createDataService(list: ListData) {
     refreshList,
     getList,
     toggleShoppingItem,
+    addShoppingItem,
     getDetail(): DetailData {
       return {
         id: "unused",
@@ -583,6 +688,7 @@ function createDataService(list: ListData) {
     getList,
     refreshList,
     toggleShoppingItem,
+    addShoppingItem,
   };
 }
 
@@ -607,6 +713,24 @@ function readSelectedIndex(viewModel: ViewModel): number {
     throw new Error("Expected list container");
   }
   return listContainer.selectedIndex;
+}
+
+function createTodoSpeechService(overrides?: Partial<TodoSpeechService>): TodoSpeechService {
+  return {
+    async start(options: {
+      onSnapshot(snapshot: TodoSpeechSnapshot): void;
+      onFinalText(text: string): void;
+      onError(error: Error): void;
+    }) {
+      options.onSnapshot({
+        status: "listening",
+        transcript: "",
+        message: "Sprich das neue Todo ein.",
+      });
+      return { stop: vi.fn(async () => {}) };
+    },
+    ...overrides,
+  };
 }
 
 async function flushAsync(): Promise<void> {

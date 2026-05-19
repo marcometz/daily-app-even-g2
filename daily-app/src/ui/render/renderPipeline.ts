@@ -32,23 +32,23 @@ export interface ImageViewModel {
 
 export interface ViewModel {
   title: string;
-  layoutMode?: "stacked" | "two-column" | "list-footer";
+  layoutMode?: "stacked" | "two-column" | "list-footer" | "text-pager";
   containers: Array<TextViewModel | ListViewModel | ImageViewModel>;
 }
 
 export class RenderPipeline {
   private created = false;
-  private lastRenderWasTextOnly = false;
+  private lastTextContainerKeys: string[] | null = null;
+  private lastTextUpdateSignature: string | null = null;
   constructor(private readonly bridge: EvenHubBridge, private readonly logger: Logger) {}
 
   async render(viewModel: ViewModel): Promise<void> {
     const layout = buildLayout(viewModel);
     const { imageUpdates, ...containerLayout } = layout;
-    const hasTextOnly =
-      containerLayout.containerTotalNum === 1 &&
-      (containerLayout.textObject?.length ?? 0) === 1 &&
-      (containerLayout.listObject?.length ?? 0) === 0 &&
-      (containerLayout.imageObject?.length ?? 0) === 0;
+    const textContainerKeys = (containerLayout.textObject?.length ?? 0) > 0
+      ? readTextContainerKeys(containerLayout.textObject ?? [])
+      : null;
+    const textUpdateSignature = readTextUpdateSignature(containerLayout);
 
     if (!this.created) {
       this.created = await this.bridge.createStartup(containerLayout);
@@ -56,14 +56,20 @@ export class RenderPipeline {
       if (this.created) {
         await this.pushImageUpdates(imageUpdates);
       }
-      this.lastRenderWasTextOnly = hasTextOnly;
+      this.lastTextContainerKeys = textContainerKeys;
+      this.lastTextUpdateSignature = textUpdateSignature;
       return;
     }
 
-    // Text delta updates are only safe if the previous rendered page was also text-only.
-    if (hasTextOnly && this.lastRenderWasTextOnly && layout.textObject) {
-      const text = layout.textObject[0];
-      if (text) {
+    // Text delta updates are safe when the rendered page still has the same container structure.
+    if (
+      layout.textObject &&
+      hasSameTextContainers(textContainerKeys, this.lastTextContainerKeys) &&
+      textUpdateSignature !== null &&
+      textUpdateSignature === this.lastTextUpdateSignature
+    ) {
+      let allUpdated = true;
+      for (const text of layout.textObject) {
         const updated = await this.bridge.updateText({
           containerID: text.containerID,
           containerName: text.containerName,
@@ -71,14 +77,19 @@ export class RenderPipeline {
           contentLength: text.content?.length ?? 0,
           content: text.content,
         });
-
-        if (updated) {
-          this.lastRenderWasTextOnly = true;
-          return;
+        if (!updated) {
+          allUpdated = false;
+          break;
         }
-
-        this.logger.info("textContainerUpgrade failed, fallback to rebuild");
       }
+
+      if (allUpdated) {
+        this.lastTextContainerKeys = textContainerKeys;
+        this.lastTextUpdateSignature = textUpdateSignature;
+        return;
+      }
+
+      this.logger.info("textContainerUpgrade failed, fallback to rebuild");
     }
 
     const rebuilt = await this.bridge.rebuild(containerLayout);
@@ -88,7 +99,8 @@ export class RenderPipeline {
       await this.pushImageUpdates(imageUpdates);
     }
 
-    this.lastRenderWasTextOnly = hasTextOnly;
+    this.lastTextContainerKeys = textContainerKeys;
+    this.lastTextUpdateSignature = textUpdateSignature;
   }
 
   private async pushImageUpdates(imageUpdates: ReturnType<typeof buildLayout>["imageUpdates"]): Promise<void> {
@@ -99,4 +111,44 @@ export class RenderPipeline {
       }
     }
   }
+}
+
+function readTextContainerKeys(textObject: NonNullable<ReturnType<typeof buildLayout>["textObject"]>): string[] {
+  return textObject.map((text) => `${text.containerID ?? ""}:${text.containerName ?? ""}`);
+}
+
+/**
+ * Returns a stable signature for layouts where only text content may change.
+ */
+function readTextUpdateSignature(layout: Omit<ReturnType<typeof buildLayout>, "imageUpdates">): string | null {
+  if (!layout.textObject || layout.textObject.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify({
+    containerTotalNum: layout.containerTotalNum,
+    listObject: layout.listObject ?? null,
+    imageObject: layout.imageObject ?? null,
+    textObject: layout.textObject.map((text) => ({
+      xPosition: text.xPosition,
+      yPosition: text.yPosition,
+      width: text.width,
+      height: text.height,
+      borderWidth: text.borderWidth,
+      borderColor: text.borderColor,
+      borderRadius: text.borderRadius,
+      paddingLength: text.paddingLength,
+      containerID: text.containerID,
+      containerName: text.containerName,
+      isEventCapture: text.isEventCapture,
+    })),
+  });
+}
+
+function hasSameTextContainers(next: string[] | null, previous: string[] | null): boolean {
+  if (!next || !previous || next.length !== previous.length) {
+    return false;
+  }
+
+  return next.every((key, index) => key === previous[index]);
 }

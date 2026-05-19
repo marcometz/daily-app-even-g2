@@ -8,6 +8,7 @@ export interface DashboardItem {
 export interface DashboardData {
   title: string;
   items: DashboardItem[];
+  statusLine?: string;
 }
 
 export interface ListItem {
@@ -36,6 +37,7 @@ export interface DataService {
   refreshList(listId: string): Promise<void>;
   getList(listId: string): ListData;
   toggleShoppingItem(itemId: string): Promise<void>;
+  addShoppingItem(title: string): Promise<void>;
   getDetail(itemId: string): DetailData;
   getAdjacentItemId(itemId: string, direction: "up" | "down"): string | null;
 }

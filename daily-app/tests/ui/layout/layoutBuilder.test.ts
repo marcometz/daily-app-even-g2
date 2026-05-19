@@ -124,6 +124,49 @@ describe("buildLayout", () => {
     });
   });
 
+  it("renders text-pager mode with separate body and pager text containers", () => {
+    const viewModel: ViewModel = {
+      title: "Detail",
+      layoutMode: "text-pager",
+      containers: [
+        { type: "text", id: "body", content: "Body", eventCapture: 1 },
+        { type: "text", id: "pager", content: "1/2 | Auto AUS", eventCapture: 0 },
+      ],
+    };
+
+    const layout = buildLayout(viewModel);
+
+    expect(layout.containerTotalNum).toBe(2);
+    expect(layout.textObject).toEqual([
+      {
+        xPosition: 0,
+        yPosition: 0,
+        width: 576,
+        height: 240,
+        borderWidth: 0,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 1,
+        containerName: "text-1",
+        content: "Body",
+        isEventCapture: 1,
+      },
+      {
+        xPosition: 0,
+        yPosition: 250,
+        width: 576,
+        height: 30,
+        borderWidth: 0,
+        borderRadius: 0,
+        paddingLength: 0,
+        containerID: 3,
+        containerName: "text-2",
+        content: "1/2 | Auto AUS",
+        isEventCapture: 0,
+      },
+    ]);
+  });
+
   it("assigns event capture to the first eligible container only", () => {
     const viewModel: ViewModel = {
       title: "Dashboard",

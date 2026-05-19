@@ -3,6 +3,7 @@ import { parseRssFeed, type ParsedRssItem } from "./rssParser";
 import { RssConfigService } from "./RssConfigService";
 import { ShoppingConfigService } from "./ShoppingConfigService";
 import type { EditableShoppingItem } from "./shoppingConfig";
+import type { EvenHubDeviceInfo, EvenHubDeviceStatus } from "../../bridge/evenHubTypes";
 
 export const RSS_LIST_ID = "rss";
 export const SHOPPING_LIST_ID = "shopping-list";
@@ -12,12 +13,15 @@ const RSS_PROXY_PATH = "/rss-proxy";
 export class RssAppDataService implements DataService {
   private rssItems: ParsedRssItem[] = [];
   private shoppingItems: EditableShoppingItem[] = [];
+  private launchSource: string | null = null;
+  private userName: string | null = null;
+  private deviceStatusText = "G2: Status unbekannt";
   constructor(
     private readonly rssConfigService: RssConfigService,
     private readonly shoppingConfigService: ShoppingConfigService
   ) {}
 
-  private readonly dashboard: DashboardData = {
+  private readonly dashboardBase: DashboardData = {
     title: "Dashboard",
     items: [
       {
@@ -34,6 +38,27 @@ export class RssAppDataService implements DataService {
       },
     ],
   };
+
+  setLaunchSource(source: string): void {
+    this.launchSource = source;
+  }
+
+  setUserName(name: string): void {
+    this.userName = name.trim() || null;
+  }
+
+  setDeviceInfo(info: EvenHubDeviceInfo | null): void {
+    if (!info) {
+      this.deviceStatusText = "G2: nicht verbunden";
+      return;
+    }
+
+    this.deviceStatusText = formatDeviceStatus(info.status, info.model);
+  }
+
+  setDeviceStatus(status: EvenHubDeviceStatus): void {
+    this.deviceStatusText = formatDeviceStatus(status);
+  }
 
   async refreshList(listId: string): Promise<void> {
     if (listId === SHOPPING_LIST_ID) {
@@ -86,7 +111,21 @@ export class RssAppDataService implements DataService {
   }
 
   getDashboard(): DashboardData {
-    return this.dashboard;
+    return {
+      ...this.dashboardBase,
+      statusLine: this.getStatusLine(),
+    };
+  }
+
+  private getStatusLine(): string {
+    const parts = [this.deviceStatusText];
+    if (this.launchSource) {
+      parts.push(`Start: ${this.launchSource}`);
+    }
+    if (this.userName) {
+      parts.push(`User: ${this.userName}`);
+    }
+    return parts.join(" | ");
   }
 
   getList(listId: string): ListData {
@@ -151,6 +190,11 @@ export class RssAppDataService implements DataService {
     this.shoppingItems = await this.shoppingConfigService.loadEditableItems();
   }
 
+  async addShoppingItem(title: string): Promise<void> {
+    await this.shoppingConfigService.addEditableItem(title);
+    this.shoppingItems = await this.shoppingConfigService.loadEditableItems();
+  }
+
   getDetail(itemId: string): DetailData {
     const item = this.rssItems.find((entry) => entry.id === itemId);
     if (!item) {
@@ -186,6 +230,17 @@ export class RssAppDataService implements DataService {
 
     return target ? target.id : null;
   }
+}
+
+function formatDeviceStatus(status: EvenHubDeviceStatus | undefined, model = "G2"): string {
+  if (!status) {
+    return `${model.toUpperCase()}: Status unbekannt`;
+  }
+
+  const battery = typeof status.batteryLevel === "number" ? ` ${status.batteryLevel}%` : "";
+  const wearing = status.isWearing === undefined ? "" : status.isWearing ? " getragen" : " nicht getragen";
+  const charging = status.isCharging ? " laedt" : "";
+  return `${model.toUpperCase()}: ${status.connectType}${battery}${wearing}${charging}`;
 }
 
 function sortShoppingItems(items: EditableShoppingItem[]): EditableShoppingItem[] {

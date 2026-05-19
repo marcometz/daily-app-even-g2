@@ -59,6 +59,27 @@ export class ShoppingConfigService {
     await this.persistEditableItems(normalized.items);
   }
 
+  async addEditableItem(title: string): Promise<EditableShoppingItem> {
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      throw new Error("Todo-Titel darf nicht leer sein.");
+    }
+
+    const items = await this.loadEditableItems();
+    const nextPosition =
+      items.length === 0 ? 0 : Math.max(...items.map((item) => item.position)) + 1;
+    const usedIds = new Set(items.map((item) => item.id));
+    const item: EditableShoppingItem = {
+      id: dedupeId(createItemId(normalizedTitle, items.length), usedIds),
+      title: normalizedTitle,
+      done: false,
+      position: nextPosition,
+    };
+
+    await this.persistEditableItems([...items, item]);
+    return { ...item };
+  }
+
   private async persistEditableItems(items: EditableShoppingItem[]): Promise<void> {
     const payload = JSON.stringify({
       version: SHOPPING_STORAGE_VERSION,

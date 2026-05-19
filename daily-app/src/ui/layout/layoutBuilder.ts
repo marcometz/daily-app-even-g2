@@ -31,9 +31,10 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
 
   const hasText = viewModel.containers.some((container) => container.type === "text");
   const hasList = viewModel.containers.some((container) => container.type === "list");
+  const isTextPager = viewModel.layoutMode === "text-pager" && hasText && !hasList;
   const isListFooter = viewModel.layoutMode === "list-footer" && hasText && hasList;
   const isTwoColumn = viewModel.layoutMode === "two-column" && hasText && hasList;
-  const isStackedSplit = !isTwoColumn && !isListFooter && hasText && hasList;
+  const isStackedSplit = !isTwoColumn && !isListFooter && !isTextPager && hasText && hasList;
 
   const textX = isTwoColumn ? 288 : isListFooter ? 488 : 0;
   const textY = isListFooter ? 264 : 0;
@@ -50,17 +51,25 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
   for (const container of viewModel.containers) {
     if (container.type === "text") {
       const text = container as TextViewModel;
+      const textIndex = textContainers.length;
       const borderedText = isTwoColumn;
+      const textGeometry = resolveTextGeometry(textIndex, {
+        isTextPager,
+        textX,
+        textY,
+        textWidth,
+        textHeight,
+      });
       textContainers.push({
-        xPosition: textX,
-        yPosition: textY,
-        width: textWidth,
-        height: textHeight,
+        xPosition: textGeometry.xPosition,
+        yPosition: textGeometry.yPosition,
+        width: textGeometry.width,
+        height: textGeometry.height,
         borderWidth: borderedText ? 1 : 0,
         borderRadius: borderedText ? 4 : 0,
         paddingLength: borderedText ? 6 : 0,
-        containerID: CONTAINER_IDS.text.id,
-        containerName: CONTAINER_IDS.text.name,
+        containerID: resolveTextContainerId(textIndex),
+        containerName: resolveTextContainerName(textIndex),
         content: text.content,
         isEventCapture: text.eventCapture && !eventCaptureAssigned ? 1 : 0,
       });
@@ -130,6 +139,44 @@ export function buildLayout(viewModel: ViewModel): LayoutPayload {
     imageObject: limitedImageContainers.length ? limitedImageContainers : undefined,
     imageUpdates: limitedImageUpdates.length ? limitedImageUpdates : undefined,
   };
+}
+
+function resolveTextGeometry(
+  textIndex: number,
+  defaults: {
+    isTextPager: boolean;
+    textX: number;
+    textY: number;
+    textWidth: number;
+    textHeight: number;
+  }
+): { xPosition: number; yPosition: number; width: number; height: number } {
+  if (!defaults.isTextPager) {
+    return {
+      xPosition: defaults.textX,
+      yPosition: defaults.textY,
+      width: defaults.textWidth,
+      height: defaults.textHeight,
+    };
+  }
+
+  if (textIndex === 0) {
+    return { xPosition: 0, yPosition: 0, width: 576, height: 240 };
+  }
+
+  if (textIndex === 1) {
+    return { xPosition: 0, yPosition: 250, width: 576, height: 30 };
+  }
+
+  return { xPosition: 0, yPosition: 0, width: 576, height: 288 };
+}
+
+function resolveTextContainerId(index: number): number {
+  return index === 0 ? CONTAINER_IDS.text.id : CONTAINER_IDS.text.id + index + 1;
+}
+
+function resolveTextContainerName(index: number): string {
+  return index === 0 ? CONTAINER_IDS.text.name : `text-${index + 1}`;
 }
 
 function normalizeListItems(items: string[]): string[] {

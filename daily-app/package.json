@@ -7,14 +7,20 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
+    "simulate": "evenhub-simulator http://localhost:5173 --automation-port 9898",
+    "pack": "npm run build && evenhub pack app.json dist -o evenhub-daily-app.ehpk",
     "test": "vitest run",
+    "test:simulator": "node scripts/evenhub-simulator-smoke.mjs",
     "test:watch": "vitest",
     "test:dashboard": "vitest run tests/screens/dashboard/resolveDashboardSelection.test.ts"
   },
   "dependencies": {
-    "@evenrealities/even_hub_sdk": "^0.0.10"
+    "@evenrealities/even_hub_sdk": "^0.0.10",
+    "@evenrealities/pretext": "^0.1.4"
   },
   "devDependencies": {
+    "@evenrealities/evenhub-cli": "^0.1.13",
+    "@evenrealities/evenhub-simulator": "^0.7.3",
     "@types/node": "^25.9.0",
     "typescript": "^5.6.3",
     "vite": "^5.4.0",

@@ -163,6 +163,21 @@ describe("DashboardScreen integration", () => {
     expect(infoContainer.content).toContain("RSS-Beschreibung");
   });
 
+  it("renders runtime status line in dashboard info", () => {
+    const screen = createDashboardScreen(
+      createRouter(),
+      createDataService(dashboardItems, "G2: connected 84%"),
+      createLogger()
+    );
+
+    const viewModel = screen.getViewModel();
+    const infoContainer = viewModel.containers[1];
+    if (!infoContainer || infoContainer.type !== "text") {
+      throw new Error("Expected text info container");
+    }
+    expect(infoContainer.content).toContain("G2: connected 84%");
+  });
+
   it("updates description when selected dashboard item changes", () => {
     const screen = createDashboardScreen(
       createRouter(),
@@ -199,6 +214,15 @@ describe("DashboardScreen integration", () => {
     expect(debug).toHaveBeenCalledWith(
       expect.stringContaining("Dashboard Up marked -> index:0 item:dashboard-rss|RSS-Feeds|list:rss")
     );
+  });
+
+  it("routes root double click through router.back", () => {
+    const router = createRouter();
+    const screen = createDashboardScreen(router, createDataService(dashboardItems), createLogger());
+
+    screen.onInput({ type: "DoubleClick" });
+
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it("routes on legacy click payload selection change like shopping list behavior", () => {
@@ -318,10 +342,11 @@ function runResolver(event: InputEvent, currentSelectedIndex: number) {
   });
 }
 
-function createDataService(items: DashboardItem[]): DataService {
+function createDataService(items: DashboardItem[], statusLine?: string): DataService {
   const dashboard: DashboardData = {
     title: "Dashboard",
     items,
+    statusLine,
   };
 
   return {
@@ -337,6 +362,7 @@ function createDataService(items: DashboardItem[]): DataService {
       };
     },
     async toggleShoppingItem(): Promise<void> {},
+    async addShoppingItem(): Promise<void> {},
     getDetail(): DetailData {
       return {
         id: "unused",

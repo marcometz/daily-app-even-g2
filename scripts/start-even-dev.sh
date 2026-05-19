@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_DIR="${APP_DIR:-$ROOT_DIR/daily-app}"
-EVENHUB_BIN="${EVENHUB_BIN:-$ROOT_DIR/node_modules/.bin/evenhub}"
+EVENHUB_BIN="${EVENHUB_BIN:-}"
 
 DEV_PORT="${DEV_PORT:-5173}"
 DEV_IP="${DEV_IP:-}"
@@ -11,7 +11,7 @@ DEV_URL="${DEV_URL:-}"
 DEV_PATH="${DEV_PATH:-/}"
 OPEN_QR_EXTERNAL="${OPEN_QR_EXTERNAL:-0}"
 START_SIMULATOR="${START_SIMULATOR:-1}"
-SIMULATOR_CMD="${SIMULATOR_CMD:-evenhub-simulator}"
+SIMULATOR_CMD="${SIMULATOR_CMD:-}"
 SIMULATOR_AUTOMATION_PORT="${SIMULATOR_AUTOMATION_PORT:-9898}"
 WAIT_SECONDS="${WAIT_SECONDS:-45}"
 
@@ -24,6 +24,56 @@ print_info() {
 
 print_error() {
   printf '[even-start] ERROR: %s\n' "$1" >&2
+}
+
+resolve_command() {
+  local candidate
+
+  for candidate in "$@"; do
+    if [[ -z "$candidate" ]]; then
+      continue
+    fi
+
+    if [[ "$candidate" == */* ]]; then
+      if [[ -x "$candidate" ]]; then
+        printf '%s' "$candidate"
+        return 0
+      fi
+      continue
+    fi
+
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+require_supported_node() {
+  local node_version_raw
+  local node_version
+  local node_major
+
+  if ! command -v node >/dev/null 2>&1; then
+    print_error "Node.js not found. Install Node.js 20 LTS or 22+ before starting the EvenHub dev flow."
+    exit 1
+  fi
+
+  node_version_raw="$(node --version 2>/dev/null || true)"
+  node_version="${node_version_raw#v}"
+  node_major="${node_version%%.*}"
+
+  if [[ -z "$node_major" ]] || [[ ! "$node_major" =~ ^[0-9]+$ ]]; then
+    print_error "Could not parse Node.js version from '$node_version_raw'. Expected Node.js 20 LTS or 22+."
+    exit 1
+  fi
+
+  if (( node_major < 20 )) || (( node_major == 21 )); then
+    print_error "Unsupported Node.js version: $node_version_raw. EvenHub currently requires Node.js 20 LTS or 22+."
+    exit 1
+  fi
 }
 
 cleanup() {
@@ -102,15 +152,30 @@ wait_for_url() {
   return 1
 }
 
-if [[ ! -x "$EVENHUB_BIN" ]]; then
-  print_error "EvenHub CLI not found at $EVENHUB_BIN. Run: npm install"
-  exit 1
-fi
-
 if [[ ! -f "$APP_DIR/package.json" ]]; then
   print_error "Could not find app package.json in $APP_DIR"
   exit 1
 fi
+
+require_supported_node
+
+EVENHUB_BIN="$(resolve_command \
+  "$EVENHUB_BIN" \
+  "$ROOT_DIR/node_modules/.bin/evenhub" \
+  "$APP_DIR/node_modules/.bin/evenhub" \
+  evenhub \
+  eh || true)"
+
+if [[ -z "$EVENHUB_BIN" ]]; then
+  print_error "EvenHub CLI not found. Install it locally with 'npm install' or globally with 'npm install -g @evenrealities/evenhub-cli'."
+  exit 1
+fi
+
+SIMULATOR_CMD="$(resolve_command \
+  "$SIMULATOR_CMD" \
+  "$APP_DIR/node_modules/.bin/evenhub-simulator" \
+  "$ROOT_DIR/node_modules/.bin/evenhub-simulator" \
+  evenhub-simulator || true)"
 
 if [[ -z "$DEV_URL" ]]; then
   HOST_IP="$(resolve_ip || true)"
@@ -150,7 +215,7 @@ if [[ "$OPEN_QR_EXTERNAL" == "1" ]]; then
 fi
 
 if [[ "$START_SIMULATOR" == "1" ]]; then
-  if command -v "$SIMULATOR_CMD" >/dev/null 2>&1; then
+  if [[ -n "$SIMULATOR_CMD" ]]; then
     simulator_args=("$DEV_URL")
     if [[ -n "$SIMULATOR_AUTOMATION_PORT" ]]; then
       simulator_args+=(--automation-port "$SIMULATOR_AUTOMATION_PORT")
@@ -161,8 +226,7 @@ if [[ "$START_SIMULATOR" == "1" ]]; then
     "$SIMULATOR_CMD" "${simulator_args[@]}" >/tmp/evenhub-simulator.log 2>&1 &
     SIMULATOR_PID=$!
   else
-    print_error "Simulator command not found: $SIMULATOR_CMD"
-    print_error "Install globally: npm i -g @evenrealities/evenhub-simulator"
+    print_error "Simulator command not found. Install it locally in the app with 'npm --prefix daily-app install -D @evenrealities/evenhub-simulator' or globally with 'npm install -g @evenrealities/evenhub-simulator'."
   fi
 fi
 

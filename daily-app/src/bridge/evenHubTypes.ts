@@ -75,6 +75,7 @@ export interface TextUpgradePayload {
   content?: string;
 }
 export type EvenHubEventPayload = EvenHubEvent;
+export type AudioChunkHandler = (chunk: Uint8Array) => void;
 
 export type SdkStartupPayload = CreateStartUpPageContainer;
 export type SdkRebuildPayload = RebuildPageContainer;
@@ -83,4 +84,26 @@ export type SdkImageUpdatePayload = ImageRawDataUpdate;
 
 export interface OsEventTypeResolver {
   fromJson(value: unknown): number | undefined;
+}
+
+export interface EvenHubUserInfo {
+  uid: number;
+  name: string;
+  avatar: string;
+  country: string;
+}
+
+export interface EvenHubDeviceStatus {
+  sn: string;
+  connectType: string;
+  isWearing?: boolean;
+  batteryLevel?: number;
+  isCharging?: boolean;
+  isInCase?: boolean;
+}
+
+export interface EvenHubDeviceInfo {
+  model: string;
+  sn: string;
+  status?: EvenHubDeviceStatus;
 }

@@ -4,24 +4,35 @@ import type { Logger } from "../../utils/logger";
 import type { Router } from "../../navigation/router";
 import type { DataService, ListData, ListItem } from "../../services/data/DataService";
 import { SHOPPING_DIVIDER_ITEM_ID } from "../../services/data/RssAppDataService";
+import type { TodoSpeechService, TodoSpeechSession, TodoSpeechSnapshot } from "../../services/speech/TodoSpeechService";
 import { clamp } from "../../utils/clamp";
 import { buildListViewModel } from "../../ui/components/ListView";
 import type { ViewModel } from "../../ui/render/renderPipeline";
 import { readEventType, readSelectedIndex, readSelectedItemName } from "../shared/readSelectedIndex";
 
 const STATUS_ITEM_ID = "__shopping-status__";
+const ADD_TODO_ITEM_ID = "__shopping-add-todo__";
 
 export function createShoppingListScreen(
   listId: string,
   dataService: DataService,
   logger: Logger,
   router: Router,
-  requestRender: () => void
+  requestRender: () => void,
+  todoSpeechService?: TodoSpeechService
 ): Screen {
   let selectedIndex = 0;
   let isLoading = false;
   let loadError: string | null = null;
   let refreshSequence = 0;
+  let mode: "list" | "voice" = "list";
+  let speechSession: TodoSpeechSession | null = null;
+  let speechSnapshot: TodoSpeechSnapshot = {
+    status: "starting",
+    transcript: "",
+    message: "Spracherkennung bereit.",
+  };
+  let isSavingSpeechTodo = false;
 
   async function refresh(): Promise<void> {
     const sequence = refreshSequence + 1;
@@ -53,6 +64,11 @@ export function createShoppingListScreen(
   }
 
   async function toggleSelectedItem(item: ListItem): Promise<void> {
+    if (item.id === ADD_TODO_ITEM_ID) {
+      await beginSpeechTodoInput();
+      return;
+    }
+
     if (item.id === STATUS_ITEM_ID || item.id === SHOPPING_DIVIDER_ITEM_ID) {
       return;
     }
@@ -80,6 +96,90 @@ export function createShoppingListScreen(
     requestRender();
   }
 
+  async function beginSpeechTodoInput(): Promise<void> {
+    if (!todoSpeechService || speechSession || isSavingSpeechTodo) {
+      return;
+    }
+
+    mode = "voice";
+    speechSnapshot = {
+      status: "starting",
+      transcript: "",
+      message: "Spracherkennung wird gestartet...",
+    };
+    requestRender();
+
+    try {
+      speechSession = await todoSpeechService.start({
+        onSnapshot(snapshot) {
+          speechSnapshot = snapshot;
+          requestRender();
+        },
+        onFinalText(text) {
+          void saveSpeechTodo(text);
+        },
+        onError(error) {
+          speechSnapshot = {
+            status: "error",
+            transcript: speechSnapshot.transcript,
+            message: error.message,
+          };
+          requestRender();
+        },
+      });
+    } catch (error) {
+      speechSession = null;
+      speechSnapshot = {
+        status: "error",
+        transcript: "",
+        message: error instanceof Error ? error.message : "Spracherkennung konnte nicht gestartet werden.",
+      };
+      requestRender();
+    }
+  }
+
+  async function saveSpeechTodo(rawTitle: string): Promise<void> {
+    const title = rawTitle.trim();
+    if (!title || isSavingSpeechTodo) {
+      return;
+    }
+
+    isSavingSpeechTodo = true;
+    speechSnapshot = {
+      status: "recognized",
+      transcript: title,
+      message: "Todo wird gespeichert...",
+    };
+    requestRender();
+
+    try {
+      await dataService.addShoppingItem(title);
+      await speechSession?.stop();
+      speechSession = null;
+      mode = "list";
+      loadError = null;
+      const list = withAddTodoAction(dataService.getList(listId), todoSpeechService !== undefined);
+      selectedIndex = resolveInteractiveIndex(list.items, 1, 1);
+    } catch (error) {
+      speechSnapshot = {
+        status: "error",
+        transcript: title,
+        message: error instanceof Error ? error.message : "Todo konnte nicht gespeichert werden.",
+      };
+    } finally {
+      isSavingSpeechTodo = false;
+      requestRender();
+    }
+  }
+
+  async function cancelSpeechTodoInput(): Promise<void> {
+    await speechSession?.stop();
+    speechSession = null;
+    mode = "list";
+    isSavingSpeechTodo = false;
+    requestRender();
+  }
+
   return {
     id: `list:${listId}`,
     onEnter() {
@@ -88,13 +188,34 @@ export function createShoppingListScreen(
     },
     onExit() {
       refreshSequence += 1;
+      void cancelSpeechTodoInput();
       logger.info(`Exit List ${listId}`);
     },
     onInput(event: InputEvent) {
+      if (mode === "voice") {
+        if (event.type === "DoubleClick") {
+          void cancelSpeechTodoInput();
+          return;
+        }
+
+        if (event.type === "Click") {
+          if (speechSnapshot.status === "error") {
+            void cancelSpeechTodoInput();
+            return;
+          }
+
+          if (speechSnapshot.transcript.trim()) {
+            void saveSpeechTodo(speechSnapshot.transcript);
+          }
+        }
+        return;
+      }
+
       const list = dataService.getList(listId);
-      logger.debug(`Shopping list items -> ${formatListItems(list.items)}`);
-      const hasItems = list.items.length > 0;
-      const maxIndex = Math.max(0, list.items.length - 1);
+      const visibleList = withAddTodoAction(withStatusState(list, isLoading, loadError), todoSpeechService !== undefined);
+      logger.debug(`Shopping list items -> ${formatListItems(visibleList.items)}`);
+      const hasItems = visibleList.items.length > 0;
+      const maxIndex = Math.max(0, visibleList.items.length - 1);
       const payloadIndex = readSelectedIndex(event);
       const payloadName = readSelectedItemName(event);
       const payloadType = readEventType(event);
@@ -102,7 +223,7 @@ export function createShoppingListScreen(
       let nextSelectedIndex = selectedIndex;
 
       if (hasItems) {
-        const resolvedIndex = resolveListSelectionIndex(list.items, event);
+        const resolvedIndex = resolveListSelectionIndex(visibleList.items, event);
         if (resolvedIndex !== null) {
           nextSelectedIndex = clamp(resolvedIndex, 0, maxIndex);
         }
@@ -117,10 +238,10 @@ export function createShoppingListScreen(
       }
 
       if (hasItems) {
-        nextSelectedIndex = resolveInteractiveIndex(list.items, nextSelectedIndex, previousSelectedIndex);
+        nextSelectedIndex = resolveInteractiveIndex(visibleList.items, nextSelectedIndex, previousSelectedIndex);
         selectedIndex = nextSelectedIndex;
 
-        const hoverItem = list.items[selectedIndex];
+        const hoverItem = visibleList.items[selectedIndex];
         if (hoverItem) {
           logger.debug(
             `Shopping hover -> index:${selectedIndex} id:${hoverItem.id} label:${hoverItem.label} ` +
@@ -145,7 +266,7 @@ export function createShoppingListScreen(
           );
           return;
         }
-        const item = list.items[selectedIndex];
+        const item = visibleList.items[selectedIndex];
         if (item) {
           logger.debug(
             `Shopping click -> index:${selectedIndex} id:${item.id} label:${item.label} ` +
@@ -160,9 +281,14 @@ export function createShoppingListScreen(
       }
     },
     getViewModel(): ViewModel {
+      if (mode === "voice") {
+        return buildSpeechTodoViewModel(speechSnapshot);
+      }
+
       const visible = withStatusState(dataService.getList(listId), isLoading, loadError);
-      const boundedIndex = clamp(selectedIndex, 0, Math.max(0, visible.items.length - 1));
-      return buildListViewModel(visible, boundedIndex);
+      const withAction = withAddTodoAction(visible, todoSpeechService !== undefined);
+      const boundedIndex = clamp(selectedIndex, 0, Math.max(0, withAction.items.length - 1));
+      return buildListViewModel(withAction, boundedIndex);
     },
   };
 }
@@ -219,6 +345,41 @@ function withStatusState(list: ListData, isLoading: boolean, loadError: string |
   return {
     ...list,
     items: [{ id: STATUS_ITEM_ID, label: message }],
+  };
+}
+
+function withAddTodoAction(list: ListData, isEnabled: boolean): ListData {
+  if (!isEnabled) {
+    return list;
+  }
+
+  return {
+    ...list,
+    items: [
+      { id: ADD_TODO_ITEM_ID, label: "+ Neues Todo sprechen" },
+      ...list.items,
+    ],
+  };
+}
+
+function buildSpeechTodoViewModel(snapshot: TodoSpeechSnapshot): ViewModel {
+  const transcript = snapshot.transcript.trim() || "(noch kein Text)";
+  return {
+    title: "Neues Todo",
+    containers: [
+      {
+        type: "text",
+        id: "speech-todo",
+        eventCapture: 1,
+        content: [
+          "Neues Todo",
+          "",
+          snapshot.message,
+          "",
+          transcript,
+        ].join("\n"),
+      },
+    ],
   };
 }
 

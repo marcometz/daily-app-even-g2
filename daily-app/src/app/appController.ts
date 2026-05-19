@@ -7,6 +7,7 @@ import { RssAppDataService } from "../services/data/RssAppDataService";
 import { RssConfigService } from "../services/data/RssConfigService";
 import { ShoppingConfigService } from "../services/data/ShoppingConfigService";
 import { EvenHubStorageService } from "../services/storage/EvenHubStorageService";
+import { SdkTodoSpeechService } from "../services/speech/TodoSpeechService";
 import { createDashboardScreen } from "../screens/DashboardScreen";
 import { RenderPipeline } from "../ui/render/renderPipeline";
 import { Logger } from "../utils/logger";
@@ -34,8 +35,36 @@ export class AppController {
     }
 
     const renderer = new RenderPipeline(this.bridge, this.logger);
+    const todoSpeechService = new SdkTodoSpeechService(this.bridge);
 
-    const router = createRouter(this.stack, dataService, this.logger);
+    this.bridge.onLaunchSource((source) => {
+      dataService.setLaunchSource(source);
+      this.stack.render();
+    });
+    this.bridge.onDeviceStatusChanged((status) => {
+      dataService.setDeviceStatus(status);
+      this.stack.render();
+    });
+    void this.bridge.getDeviceInfo().then((info) => {
+      dataService.setDeviceInfo(info);
+      this.stack.render();
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.info(`Device info unavailable: ${message}`);
+    });
+    void this.bridge.getUserInfo().then((user) => {
+      if (user) {
+        dataService.setUserName(user.name);
+        this.stack.render();
+      }
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.info(`User info unavailable: ${message}`);
+    });
+
+    const router = createRouter(this.stack, dataService, this.logger, () => {
+      void this.bridge?.shutDownPageContainer(1);
+    }, todoSpeechService);
     this.stack.setRenderer((screen) => renderer.render(screen.getViewModel()));
 
     const dashboard = createDashboardScreen(router, dataService, this.logger);

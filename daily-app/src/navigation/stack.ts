@@ -18,9 +18,9 @@ export class ScreenStack {
     this.render();
   }
 
-  pop(): void {
+  pop(): boolean {
     if (this.stack.length <= 1) {
-      return;
+      return false;
     }
     const current = this.stack.pop();
     current?.onExit();
@@ -29,6 +29,7 @@ export class ScreenStack {
       next.onEnter();
     }
     this.render();
+    return true;
   }
 
   current(): Screen | undefined {
